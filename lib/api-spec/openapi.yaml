@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Executable Governance API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: organizations
+    description: Organization management
+  - name: policies
+    description: Policy management
+  - name: rules
+    description: Rule management
+  - name: users
+    description: User management
+  - name: analytics
+    description: Analytics and reporting
 paths:
   /healthz:
     get:
@@ -24,6 +34,598 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # Organizations
+  /organizations:
+    get:
+      operationId: listOrganizations
+      tags: [organizations]
+      summary: List all organizations
+      responses:
+        "200":
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+    post:
+      operationId: createOrganization
+      tags: [organizations]
+      summary: Create an organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationBody"
+      responses:
+        "201":
+          description: Created organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /organizations/{id}:
+    get:
+      operationId: getOrganization
+      tags: [organizations]
+      summary: Get an organization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateOrganization
+      tags: [organizations]
+      summary: Update an organization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationBody"
+      responses:
+        "200":
+          description: Updated organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteOrganization
+      tags: [organizations]
+      summary: Delete an organization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Policies
+  /policies:
+    get:
+      operationId: listPolicies
+      tags: [policies]
+      summary: List policies
+      parameters:
+        - name: organizationId
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+            enum: [draft, published, archived, null]
+      responses:
+        "200":
+          description: List of policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicyWithStats"
+    post:
+      operationId: createPolicy
+      tags: [policies]
+      summary: Create a policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePolicyBody"
+      responses:
+        "201":
+          description: Created policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Policy"
+
+  /policies/{id}:
+    get:
+      operationId: getPolicy
+      tags: [policies]
+      summary: Get a policy with its rules
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Policy with rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyWithRules"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updatePolicy
+      tags: [policies]
+      summary: Update a policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePolicyBody"
+      responses:
+        "200":
+          description: Updated policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Policy"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePolicy
+      tags: [policies]
+      summary: Delete a policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /policies/{id}/publish:
+    post:
+      operationId: publishPolicy
+      tags: [policies]
+      summary: Publish a policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Published policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Policy"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /policies/{id}/archive:
+    post:
+      operationId: archivePolicy
+      tags: [policies]
+      summary: Archive a policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Archived policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Policy"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # Rules
+  /rules:
+    get:
+      operationId: listRules
+      tags: [rules]
+      summary: List rules
+      parameters:
+        - name: policyId
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+            enum: [draft, published, archived, null]
+      responses:
+        "200":
+          description: List of rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rule"
+    post:
+      operationId: createRule
+      tags: [rules]
+      summary: Create a rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRuleBody"
+      responses:
+        "201":
+          description: Created rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+
+  /rules/{id}:
+    get:
+      operationId: getRule
+      tags: [rules]
+      summary: Get a rule with version history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rule with versions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleWithVersions"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateRule
+      tags: [rules]
+      summary: Update a rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRuleBody"
+      responses:
+        "200":
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteRule
+      tags: [rules]
+      summary: Delete a rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /rules/{id}/publish:
+    post:
+      operationId: publishRule
+      tags: [rules]
+      summary: Publish a rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Published rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rules/{id}/versions:
+    get:
+      operationId: getRuleVersions
+      tags: [rules]
+      summary: Get version history for a rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Version history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RuleVersion"
+
+  # Users
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users
+      parameters:
+        - name: organizationId
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Analytics (wow endpoints)
+  /analytics/summary:
+    get:
+      operationId: getAnalyticsSummary
+      tags: [analytics]
+      summary: Get platform summary stats
+      parameters:
+        - name: organizationId
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+
+  /analytics/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [analytics]
+      summary: Get recent rule and policy activity
+      parameters:
+        - name: organizationId
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Recent activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /analytics/policy-breakdown:
+    get:
+      operationId: getPolicyBreakdown
+      tags: [analytics]
+      summary: Get policy status breakdown by organization
+      parameters:
+        - name: organizationId
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Policy breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyBreakdown"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +636,447 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    # Organization schemas
+    Organization:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+
+    CreateOrganizationBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+      required:
+        - name
+
+    UpdateOrganizationBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+
+    # Policy schemas
+    Policy:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        domain:
+          type: string
+          description: "Policy domain e.g. expense, hr, security, contract"
+        status:
+          type: string
+          enum: [draft, published, archived]
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organizationId
+        - name
+        - domain
+        - status
+        - version
+        - createdAt
+        - updatedAt
+
+    PolicyWithStats:
+      allOf:
+        - $ref: "#/components/schemas/Policy"
+        - type: object
+          properties:
+            ruleCount:
+              type: integer
+            publishedRuleCount:
+              type: integer
+            draftRuleCount:
+              type: integer
+            organizationName:
+              type: string
+          required:
+            - ruleCount
+            - publishedRuleCount
+            - draftRuleCount
+            - organizationName
+
+    PolicyWithRules:
+      allOf:
+        - $ref: "#/components/schemas/Policy"
+        - type: object
+          properties:
+            rules:
+              type: array
+              items:
+                $ref: "#/components/schemas/Rule"
+            organizationName:
+              type: string
+          required:
+            - rules
+            - organizationName
+
+    CreatePolicyBody:
+      type: object
+      properties:
+        organizationId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        domain:
+          type: string
+      required:
+        - organizationId
+        - name
+        - domain
+
+    UpdatePolicyBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        domain:
+          type: ["string", "null"]
+
+    # Rule schemas
+    Rule:
+      type: object
+      properties:
+        id:
+          type: integer
+        policyId:
+          type: integer
+        name:
+          type: string
+        naturalLanguageText:
+          type: string
+          description: "The plain English text of the rule"
+        structuredRepresentation:
+          description: "Structured condition/action JSON"
+        outcome:
+          type: string
+          enum: [approved, denied, escalated, needs_review]
+        priority:
+          type: integer
+        status:
+          type: string
+          enum: [draft, published, archived]
+        version:
+          type: integer
+        resolvedAmbiguities:
+          description: "JSON array of resolved ambiguity items"
+        resolvedEdgeCases:
+          description: "JSON array of resolved edge case items"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - policyId
+        - name
+        - naturalLanguageText
+        - outcome
+        - priority
+        - status
+        - version
+        - createdAt
+        - updatedAt
+
+    RuleWithVersions:
+      allOf:
+        - $ref: "#/components/schemas/Rule"
+        - type: object
+          properties:
+            versions:
+              type: array
+              items:
+                $ref: "#/components/schemas/RuleVersion"
+            policyName:
+              type: string
+          required:
+            - versions
+            - policyName
+
+    RuleVersion:
+      type: object
+      properties:
+        id:
+          type: integer
+        ruleId:
+          type: integer
+        version:
+          type: integer
+        naturalLanguageText:
+          type: string
+        structuredRepresentation:
+          description: "Structured condition/action JSON snapshot"
+        outcome:
+          type: string
+          enum: [approved, denied, escalated, needs_review]
+        changedBy:
+          type: ["string", "null"]
+        changeNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ruleId
+        - version
+        - naturalLanguageText
+        - outcome
+        - createdAt
+
+    CreateRuleBody:
+      type: object
+      properties:
+        policyId:
+          type: integer
+        name:
+          type: string
+        naturalLanguageText:
+          type: string
+        outcome:
+          type: string
+          enum: [approved, denied, escalated, needs_review]
+        priority:
+          type: integer
+        structuredRepresentation:
+          description: "Structured condition/action JSON"
+      required:
+        - policyId
+        - name
+        - naturalLanguageText
+        - outcome
+        - priority
+
+    UpdateRuleBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        naturalLanguageText:
+          type: ["string", "null"]
+        outcome:
+          type: ["string", "null"]
+          enum: [approved, denied, escalated, needs_review, null]
+        priority:
+          type: ["integer", "null"]
+        structuredRepresentation:
+          description: "Structured condition/action JSON"
+        resolvedAmbiguities:
+          description: "JSON array of resolved ambiguity items"
+        resolvedEdgeCases:
+          description: "JSON array of resolved edge case items"
+        changeNote:
+          type: ["string", "null"]
+
+    # User schemas
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [reader, editor, approver, admin]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - organizationId
+        - name
+        - email
+        - role
+        - createdAt
+        - updatedAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        organizationId:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [reader, editor, approver, admin]
+      required:
+        - organizationId
+        - name
+        - email
+        - role
+
+    UpdateUserBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        role:
+          type: ["string", "null"]
+          enum: [reader, editor, approver, admin, null]
+
+    # Analytics schemas
+    AnalyticsSummary:
+      type: object
+      properties:
+        totalOrganizations:
+          type: integer
+        totalPolicies:
+          type: integer
+        publishedPolicies:
+          type: integer
+        draftPolicies:
+          type: integer
+        totalRules:
+          type: integer
+        publishedRules:
+          type: integer
+        draftRules:
+          type: integer
+        totalUsers:
+          type: integer
+      required:
+        - totalOrganizations
+        - totalPolicies
+        - publishedPolicies
+        - draftPolicies
+        - totalRules
+        - publishedRules
+        - draftRules
+        - totalUsers
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [rule_created, rule_updated, rule_published, policy_created, policy_published, policy_archived]
+        entityId:
+          type: integer
+        entityName:
+          type: string
+        entityType:
+          type: string
+          enum: [rule, policy]
+        organizationName:
+          type: string
+        policyName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - entityId
+        - entityName
+        - entityType
+        - organizationName
+        - createdAt
+
+    PolicyBreakdown:
+      type: object
+      properties:
+        totalPolicies:
+          type: integer
+        byStatus:
+          type: object
+          properties:
+            draft:
+              type: integer
+            published:
+              type: integer
+            archived:
+              type: integer
+          required:
+            - draft
+            - published
+            - archived
+        byDomain:
+          type: array
+          items:
+            type: object
+            properties:
+              domain:
+                type: string
+              count:
+                type: integer
+              publishedCount:
+                type: integer
+            required:
+              - domain
+              - count
+              - publishedCount
+      required:
+        - totalPolicies
+        - byStatus
+        - byDomain
