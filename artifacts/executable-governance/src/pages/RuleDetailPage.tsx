@@ -85,7 +85,7 @@ export function RuleDetailPage() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListRulesQueryKey() });
-        setLocation("/policies");
+        setLocation(rule?.policyId ? `/policies/${rule.policyId}` : "/rules");
       },
     },
   });
