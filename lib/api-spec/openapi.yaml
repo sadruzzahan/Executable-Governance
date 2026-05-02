@@ -1019,7 +1019,7 @@ components:
           type: integer
         type:
           type: string
-          enum: [rule_created, rule_updated, rule_published, policy_created, policy_published, policy_archived]
+          enum: [rule_created, rule_updated, rule_published, policy_created, policy_updated, policy_published, policy_archived]
         entityId:
           type: integer
         entityName:

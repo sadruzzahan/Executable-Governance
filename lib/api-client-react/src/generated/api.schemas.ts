@@ -290,6 +290,7 @@ export const ActivityItemType = {
   rule_updated: "rule_updated",
   rule_published: "rule_published",
   policy_created: "policy_created",
+  policy_updated: "policy_updated",
   policy_published: "policy_published",
   policy_archived: "policy_archived",
 } as const;

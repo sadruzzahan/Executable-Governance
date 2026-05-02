@@ -630,6 +630,7 @@ export const GetRecentActivityResponseItem = zod.object({
     "rule_updated",
     "rule_published",
     "policy_created",
+    "policy_updated",
     "policy_published",
     "policy_archived",
   ]),

@@ -3,24 +3,30 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
+import { DashboardPage } from "@/pages/DashboardPage";
+import { PoliciesPage } from "@/pages/PoliciesPage";
+import { PolicyDetailPage } from "@/pages/PolicyDetailPage";
+import { NewPolicyPage } from "@/pages/NewPolicyPage";
+import { RulesPage } from "@/pages/RulesPage";
+import { RuleDetailPage } from "@/pages/RuleDetailPage";
+import { NewRulePage } from "@/pages/NewRulePage";
+import { UsersPage } from "@/pages/UsersPage";
+import { OrganizationsPage } from "@/pages/OrganizationsPage";
 
 const queryClient = new QueryClient();
-
-function Home() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Replit Agent is building...</h1>
-        <p className="mt-2 text-sm text-gray-600">Your app will appear here once it's ready.</p>
-      </div>
-    </div>
-  );
-}
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={DashboardPage} />
+      <Route path="/policies" component={PoliciesPage} />
+      <Route path="/policies/new" component={NewPolicyPage} />
+      <Route path="/policies/:id" component={PolicyDetailPage} />
+      <Route path="/rules" component={RulesPage} />
+      <Route path="/rules/new" component={NewRulePage} />
+      <Route path="/rules/:id" component={RuleDetailPage} />
+      <Route path="/users" component={UsersPage} />
+      <Route path="/organizations" component={OrganizationsPage} />
       <Route component={NotFound} />
     </Switch>
   );
