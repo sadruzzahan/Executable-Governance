@@ -8,6 +8,7 @@ import {
   useDeleteRule,
   useUpdateRule,
   useGetRuleVersionDiff,
+  getGetRuleVersionDiffQueryKey,
   getListRulesQueryKey,
 } from "@workspace/api-client-react";
 import { AppLayout, PageHeader } from "@/components/AppLayout";
@@ -92,10 +93,11 @@ export function RuleDetailPage() {
   const [diffFrom, setDiffFrom] = useState<number | null>(null);
   const [diffTo, setDiffTo] = useState<number | null>(null);
   const diffEnabled = !!id && diffFrom != null && diffTo != null && diffFrom !== diffTo;
+  const diffParams = { from: diffFrom ?? 0, to: diffTo ?? 0 };
   const { data: diff } = useGetRuleVersionDiff(
     id,
-    { from: diffFrom ?? 0, to: diffTo ?? 0 },
-    { query: { enabled: diffEnabled } },
+    diffParams,
+    { query: { enabled: diffEnabled, queryKey: getGetRuleVersionDiffQueryKey(id, diffParams) } },
   );
 
   if (!rule) {

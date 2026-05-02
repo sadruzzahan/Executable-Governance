@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, desc } from "drizzle-orm";
-import { db, organizationsTable, policiesTable, rulesTable, usersTable, ruleVersionsTable } from "@workspace/db";
+import { db, organizationsTable, policiesTable, rulesTable, usersTable } from "@workspace/db";
 import {
   GetAnalyticsSummaryQueryParams,
   GetRecentActivityQueryParams,
@@ -184,8 +184,5 @@ router.get("/analytics/policy-breakdown", async (req, res): Promise<void> => {
     byDomain,
   });
 });
-
-// Reference imports to keep TypeScript happy if any are unused above
-void ruleVersionsTable;
 
 export default router;
