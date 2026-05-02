@@ -179,6 +179,21 @@ export interface CreateRuleBody {
   structuredRepresentation?: unknown;
 }
 
+export type RuleVersionDiffChangesItem = {
+  field: string;
+  /** Previous value (any JSON) */
+  before?: unknown;
+  /** New value (any JSON) */
+  after?: unknown;
+};
+
+export interface RuleVersionDiff {
+  ruleId: number;
+  from: RuleVersion;
+  to: RuleVersion;
+  changes: RuleVersionDiffChangesItem[];
+}
+
 /**
  * @nullable
  */
@@ -374,6 +389,17 @@ export const ListRulesStatus = {
   published: "published",
   archived: "archived",
 } as const;
+
+export type GetRuleVersionDiffParams = {
+  /**
+   * Source version number
+   */
+  from: number;
+  /**
+   * Target version number
+   */
+  to: number;
+};
 
 export type ListUsersParams = {
   /**

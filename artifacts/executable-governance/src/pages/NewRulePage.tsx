@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StructuredRuleEditor, DEFAULT_STRUCTURED, type StructuredRule } from "@/components/StructuredRuleEditor";
 
 export function NewRulePage() {
   const [, setLocation] = useLocation();
@@ -22,6 +23,7 @@ export function NewRulePage() {
   const [naturalLanguageText, setNaturalLanguageText] = useState("");
   const [outcome, setOutcome] = useState("approved");
   const [priority, setPriority] = useState("10");
+  const [structured, setStructured] = useState<StructuredRule>(DEFAULT_STRUCTURED);
 
   const create = useCreateRule({
     mutation: {
@@ -38,6 +40,14 @@ export function NewRulePage() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!policyId || !name.trim() || !naturalLanguageText.trim()) return;
+    const cleanedStructured: Record<string, unknown> = {
+      kind: structured.kind,
+      field: structured.field,
+      operator: structured.operator,
+      value: structured.value,
+    };
+    if (structured.currency) cleanedStructured.currency = structured.currency;
+    if (structured.scope) cleanedStructured.scope = structured.scope;
     create.mutate({
       data: {
         policyId: Number(policyId),
@@ -45,14 +55,15 @@ export function NewRulePage() {
         naturalLanguageText: naturalLanguageText.trim(),
         outcome: outcome as "approved" | "denied" | "escalated" | "needs_review",
         priority: Number(priority),
+        structuredRepresentation: cleanedStructured,
       },
     });
   };
 
   return (
     <AppLayout>
-      <PageHeader title="New Rule" description="Define a new rule in plain language. The structured representation will be added later." />
-      <div className="p-8 max-w-2xl">
+      <PageHeader title="New Rule" description="Write the rule in plain English and define its structured condition." />
+      <div className="p-8 max-w-3xl">
         <Card className="p-6">
           <form onSubmit={onSubmit} className="space-y-5" data-testid="form-new-rule">
             <div className="space-y-2">
@@ -72,7 +83,7 @@ export function NewRulePage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="text">Plain-language rule</Label>
-              <Textarea id="text" rows={5} value={naturalLanguageText} onChange={(e) => setNaturalLanguageText(e.target.value)} placeholder="e.g. Hotel charges up to $250 per night are approved without manager review." data-testid="input-text" />
+              <Textarea id="text" rows={4} value={naturalLanguageText} onChange={(e) => setNaturalLanguageText(e.target.value)} placeholder="e.g. Hotel charges up to $250 per night are approved without manager review." data-testid="input-text" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -92,6 +103,7 @@ export function NewRulePage() {
                 <Input id="priority" type="number" value={priority} onChange={(e) => setPriority(e.target.value)} data-testid="input-priority" />
               </div>
             </div>
+            <StructuredRuleEditor value={structured} onChange={setStructured} />
             <div className="flex items-center gap-2 pt-2">
               <Button type="submit" disabled={create.isPending || !policyId || !name.trim() || !naturalLanguageText.trim()} data-testid="button-submit">
                 {create.isPending ? "Creating…" : "Create Rule"}

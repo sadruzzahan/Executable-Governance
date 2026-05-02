@@ -515,6 +515,57 @@ export const GetRuleVersionsResponseItem = zod.object({
 export const GetRuleVersionsResponse = zod.array(GetRuleVersionsResponseItem);
 
 /**
+ * @summary Diff two versions of a rule
+ */
+export const GetRuleVersionDiffParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetRuleVersionDiffQueryParams = zod.object({
+  from: zod.coerce.number().describe("Source version number"),
+  to: zod.coerce.number().describe("Target version number"),
+});
+
+export const GetRuleVersionDiffResponse = zod.object({
+  ruleId: zod.number(),
+  from: zod.object({
+    id: zod.number(),
+    ruleId: zod.number(),
+    version: zod.number(),
+    naturalLanguageText: zod.string(),
+    structuredRepresentation: zod
+      .unknown()
+      .optional()
+      .describe("Structured condition\/action JSON snapshot"),
+    outcome: zod.enum(["approved", "denied", "escalated", "needs_review"]),
+    changedBy: zod.string().nullish(),
+    changeNote: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+  }),
+  to: zod.object({
+    id: zod.number(),
+    ruleId: zod.number(),
+    version: zod.number(),
+    naturalLanguageText: zod.string(),
+    structuredRepresentation: zod
+      .unknown()
+      .optional()
+      .describe("Structured condition\/action JSON snapshot"),
+    outcome: zod.enum(["approved", "denied", "escalated", "needs_review"]),
+    changedBy: zod.string().nullish(),
+    changeNote: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+  }),
+  changes: zod.array(
+    zod.object({
+      field: zod.string(),
+      before: zod.unknown().optional().describe("Previous value (any JSON)"),
+      after: zod.unknown().optional().describe("New value (any JSON)"),
+    }),
+  ),
+});
+
+/**
  * @summary List users
  */
 export const ListUsersQueryParams = zod.object({

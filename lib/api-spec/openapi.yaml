@@ -455,6 +455,43 @@ paths:
                 items:
                   $ref: "#/components/schemas/RuleVersion"
 
+  /rules/{id}/diff:
+    get:
+      operationId: getRuleVersionDiff
+      tags: [rules]
+      summary: Diff two versions of a rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Source version number
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Target version number
+      responses:
+        "200":
+          description: Diff between two versions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleVersionDiff"
+        "404":
+          description: Version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # Users
   /users:
     get:
@@ -901,6 +938,34 @@ components:
         - naturalLanguageText
         - outcome
         - priority
+
+    RuleVersionDiff:
+      type: object
+      properties:
+        ruleId:
+          type: integer
+        from:
+          $ref: "#/components/schemas/RuleVersion"
+        to:
+          $ref: "#/components/schemas/RuleVersion"
+        changes:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              before:
+                description: Previous value (any JSON)
+              after:
+                description: New value (any JSON)
+            required:
+              - field
+      required:
+        - ruleId
+        - from
+        - to
+        - changes
 
     UpdateRuleBody:
       type: object

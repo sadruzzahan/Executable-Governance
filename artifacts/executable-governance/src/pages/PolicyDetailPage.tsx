@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,13 +7,18 @@ import {
   getListPoliciesQueryKey,
   usePublishPolicy,
   useArchivePolicy,
+  useUpdatePolicy,
   useDeletePolicy,
 } from "@workspace/api-client-react";
 import { AppLayout, PageHeader } from "@/components/AppLayout";
 import { StatusBadge, OutcomeBadge } from "@/components/StatusBadge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, Archive, Send, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ArrowLeft, Plus, Archive, Send, Trash2, Pencil } from "lucide-react";
 
 export function PolicyDetailPage() {
   const params = useParams<{ id: string }>();
@@ -26,6 +32,21 @@ export function PolicyDetailPage() {
     queryClient.invalidateQueries({ queryKey: getListPoliciesQueryKey() });
   };
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [domain, setDomain] = useState("");
+
+  useEffect(() => {
+    if (!policy) return;
+    setName(policy.name);
+    setDescription(policy.description ?? "");
+    setDomain(policy.domain);
+  }, [policy]);
+
+  const update = useUpdatePolicy({
+    mutation: { onSuccess: () => { invalidate(); setEditOpen(false); } },
+  });
   const publish = usePublishPolicy({ mutation: { onSuccess: invalidate } });
   const archive = useArchivePolicy({ mutation: { onSuccess: invalidate } });
   const del = useDeletePolicy({
@@ -52,6 +73,9 @@ export function PolicyDetailPage() {
         description={policy.description ?? undefined}
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setEditOpen(true)} data-testid="button-edit-policy">
+              <Pencil className="w-4 h-4 mr-1" /> Edit
+            </Button>
             <Link href={`/rules/new?policyId=${policy.id}`}>
               <Button variant="outline" data-testid="button-add-rule">
                 <Plus className="w-4 h-4 mr-1" /> Add Rule
@@ -140,6 +164,25 @@ export function PolicyDetailPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Policy</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} data-testid="edit-input-name" /></div>
+            <div className="space-y-2"><Label>Domain</Label><Input value={domain} onChange={(e) => setDomain(e.target.value)} data-testid="edit-input-domain" /></div>
+            <div className="space-y-2"><Label>Description</Label><Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} data-testid="edit-input-description" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button
+              disabled={!name || !domain || update.isPending}
+              onClick={() => update.mutate({ id, data: { name, description: description || null, domain } })}
+              data-testid="button-save-policy"
+            >Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

@@ -10,6 +10,8 @@ import {
   PublishRuleParams,
   GetRuleVersionsParams,
   ListRulesQueryParams,
+  GetRuleVersionDiffParams,
+  GetRuleVersionDiffQueryParams,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -180,6 +182,34 @@ router.get("/rules/:id/versions", async (req, res): Promise<void> => {
   }
   const rows = await db.select().from(ruleVersionsTable).where(eq(ruleVersionsTable.ruleId, params.data.id)).orderBy(desc(ruleVersionsTable.version));
   res.json(rows);
+});
+
+router.get("/rules/:id/diff", async (req, res): Promise<void> => {
+  const params = GetRuleVersionDiffParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const query = GetRuleVersionDiffQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const versions = await db
+    .select()
+    .from(ruleVersionsTable)
+    .where(eq(ruleVersionsTable.ruleId, params.data.id));
+  const from = versions.find((v) => v.version === query.data.from);
+  const to = versions.find((v) => v.version === query.data.to);
+  if (!from || !to) {
+    res.status(404).json({ error: "Version not found" });
+    return;
+  }
+  const fields: Array<keyof typeof from> = ["naturalLanguageText", "outcome", "structuredRepresentation"];
+  const changes = fields
+    .filter((f) => JSON.stringify(from[f]) !== JSON.stringify(to[f]))
+    .map((f) => ({ field: f as string, before: from[f], after: to[f] }));
+  res.json({ ruleId: params.data.id, from, to, changes });
 });
 
 export default router;

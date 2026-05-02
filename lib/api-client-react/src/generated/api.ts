@@ -27,6 +27,7 @@ import type {
   GetAnalyticsSummaryParams,
   GetPolicyBreakdownParams,
   GetRecentActivityParams,
+  GetRuleVersionDiffParams,
   HealthStatus,
   ListPoliciesParams,
   ListRulesParams,
@@ -38,6 +39,7 @@ import type {
   PolicyWithStats,
   Rule,
   RuleVersion,
+  RuleVersionDiff,
   RuleWithVersions,
   UpdateOrganizationBody,
   UpdatePolicyBody,
@@ -1745,6 +1747,116 @@ export function useGetRuleVersions<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetRuleVersionsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Diff two versions of a rule
+ */
+export const getGetRuleVersionDiffUrl = (
+  id: number,
+  params: GetRuleVersionDiffParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/rules/${id}/diff?${stringifiedParams}`
+    : `/api/rules/${id}/diff`;
+};
+
+export const getRuleVersionDiff = async (
+  id: number,
+  params: GetRuleVersionDiffParams,
+  options?: RequestInit,
+): Promise<RuleVersionDiff> => {
+  return customFetch<RuleVersionDiff>(getGetRuleVersionDiffUrl(id, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRuleVersionDiffQueryKey = (
+  id: number,
+  params?: GetRuleVersionDiffParams,
+) => {
+  return [`/api/rules/${id}/diff`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetRuleVersionDiffQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRuleVersionDiff>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  params: GetRuleVersionDiffParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRuleVersionDiff>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetRuleVersionDiffQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRuleVersionDiff>>
+  > = ({ signal }) =>
+    getRuleVersionDiff(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRuleVersionDiff>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRuleVersionDiffQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRuleVersionDiff>>
+>;
+export type GetRuleVersionDiffQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Diff two versions of a rule
+ */
+
+export function useGetRuleVersionDiff<
+  TData = Awaited<ReturnType<typeof getRuleVersionDiff>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  params: GetRuleVersionDiffParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRuleVersionDiff>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRuleVersionDiffQueryOptions(id, params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
