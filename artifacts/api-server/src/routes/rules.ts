@@ -132,6 +132,11 @@ router.patch("/rules/:id", async (req, res): Promise<void> => {
     updates.version = existing.version + 1;
   }
 
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
   const row = await db.transaction(async (tx) => {
     const [updated] = await tx.update(rulesTable).set(updates).where(eq(rulesTable.id, params.data.id)).returning();
     if (materialChange) {

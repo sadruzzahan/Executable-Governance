@@ -64,6 +64,11 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
   if (parsed.data.email != null) updates.email = parsed.data.email;
   if (parsed.data.role != null) updates.role = parsed.data.role;
 
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
   const [row] = await db.update(usersTable).set(updates).where(eq(usersTable.id, params.data.id)).returning();
   if (!row) {
     res.status(404).json({ error: "User not found" });

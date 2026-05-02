@@ -56,6 +56,11 @@ router.patch("/organizations/:id", async (req, res): Promise<void> => {
   if (parsed.data.description !== undefined) updates.description = parsed.data.description;
   if (parsed.data.industry !== undefined) updates.industry = parsed.data.industry;
 
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
   const [row] = await db.update(organizationsTable).set(updates).where(eq(organizationsTable.id, params.data.id)).returning();
   if (!row) {
     res.status(404).json({ error: "Organization not found" });
