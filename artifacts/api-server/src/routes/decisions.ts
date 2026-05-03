@@ -184,7 +184,7 @@ router.post("/decisions/evaluate", async (req, res): Promise<void> => {
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
   const { policyId, actor, action, context, scenario } = body.data;
-  const evalContext: Record<string, unknown> = context ?? {};
+  const evalContext: Record<string, unknown> = { actor, action, ...(context ?? {}) };
 
   const [policy] = await db
     .select({
@@ -240,11 +240,11 @@ router.post("/decisions/evaluate", async (req, res): Promise<void> => {
     confidence = Math.round(bestScore * 60);
   }
 
-  const auditRules = matchedRule
+  const explanation = await generateExplanation(outcome, evalResults, evalContext, actor, action);
+
+  const topRulesForSummary = matchedRule
     ? evalResults
     : [...evalResults].sort((a, b) => b.matchScore - a.matchScore).slice(0, 3);
-
-  const explanation = await generateExplanation(outcome, evalResults, evalContext, actor, action);
 
   const [saved] = await db.insert(decisionsTable).values({
     organizationId: policy.organizationId,
@@ -253,7 +253,7 @@ router.post("/decisions/evaluate", async (req, res): Promise<void> => {
     action,
     contextJson: evalContext,
     outcome,
-    rulesAppliedJson: auditRules,
+    rulesAppliedJson: evalResults,
     explanation,
     confidence,
     scenario: scenario ?? null,
@@ -263,7 +263,7 @@ router.post("/decisions/evaluate", async (req, res): Promise<void> => {
     id: saved.id,
     decision: outcome,
     reason: explanation,
-    rulesApplied: auditRules.map((r) => ({
+    rulesApplied: topRulesForSummary.map((r) => ({
       ruleId: r.ruleId,
       name: r.ruleName,
       priority: r.priority,
