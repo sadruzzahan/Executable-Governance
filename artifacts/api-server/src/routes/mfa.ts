@@ -11,7 +11,7 @@
  *      and the plaintext codes are returned to the client exactly once.
  */
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
@@ -45,7 +45,12 @@ router.get("/account/mfa/status", async (req, res) => {
     ? await db
         .select({ id: mfaRecoveryCodesTable.id })
         .from(mfaRecoveryCodesTable)
-        .where(eq(mfaRecoveryCodesTable.userId, req.user!.id))
+        .where(
+          and(
+            eq(mfaRecoveryCodesTable.userId, req.user!.id),
+            isNull(mfaRecoveryCodesTable.usedAt),
+          ),
+        )
     : [];
   res.json({
     enrolled: !!row,

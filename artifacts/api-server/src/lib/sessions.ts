@@ -7,7 +7,7 @@
  * hash means a database leak cannot be replayed as a live login.
  */
 import { randomBytes } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, ne } from "drizzle-orm";
 import {
   db,
   userSessionsTable,
@@ -103,6 +103,10 @@ export async function revokeAllOtherSessions(
   userId: number,
   keepSessionId: number,
 ): Promise<number> {
+  // Single atomic predicate: revoke every active session for this user
+  // except the one whose id is `keepSessionId`. Avoids the prior "revoke
+  // all then un-revoke" pattern which briefly flagged the current
+  // session revoked under concurrent requests.
   const result = await db
     .update(userSessionsTable)
     .set({ revokedAt: new Date() })
@@ -110,16 +114,11 @@ export async function revokeAllOtherSessions(
       and(
         eq(userSessionsTable.userId, userId),
         isNull(userSessionsTable.revokedAt),
+        ne(userSessionsTable.id, keepSessionId),
       ),
     )
     .returning({ id: userSessionsTable.id });
-  // Caller can't filter "not equal" cleanly with our drizzle slice; do it post-hoc.
-  // Re-mark the kept session as not revoked.
-  await db
-    .update(userSessionsTable)
-    .set({ revokedAt: null })
-    .where(eq(userSessionsTable.id, keepSessionId));
-  return Math.max(0, result.length - 1);
+  return result.length;
 }
 
 export async function revokeAllSessions(userId: number): Promise<void> {
