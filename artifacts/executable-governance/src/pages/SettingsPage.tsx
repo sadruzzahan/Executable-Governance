@@ -24,7 +24,9 @@ import {
   useRevokeSession,
   useRevokeOtherSessions,
   useDeleteAccount,
+  useOrgSecurity,
   useUpdateOrgSecurity,
+  useResendVerification,
   useLogout,
   ApiError,
   type SessionRow,
@@ -262,6 +264,7 @@ function SecurityTab() {
   const disable = useMfaDisable();
   const regen = useRegenerateRecoveryCodes();
   const updateOrgSecurity = useUpdateOrgSecurity();
+  const orgSecurity = useOrgSecurity(me.data?.user.organizationId);
   const { toast } = useToast();
 
   const [qr, setQr] = useState<{ url: string; data: string } | null>(null);
@@ -269,9 +272,9 @@ function SecurityTab() {
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [disablePw, setDisablePw] = useState("");
   const [showDisable, setShowDisable] = useState(false);
-  const [requireMfa, setRequireMfa] = useState(false);
 
   const isAdmin = me.data?.user.role === "admin";
+  const requireMfa = orgSecurity.data?.requireMfa ?? false;
 
   const beginEnroll = async () => {
     setRecoveryCodes(null);
@@ -306,12 +309,10 @@ function SecurityTab() {
     toast({ title: "New recovery codes generated" });
   };
   const toggleOrgMfa = async (val: boolean) => {
-    setRequireMfa(val);
     try {
       await updateOrgSecurity.mutateAsync({ id: me.data!.user.organizationId, requireMfa: val });
       toast({ title: val ? "MFA now required for org" : "MFA requirement lifted" });
     } catch (err) {
-      setRequireMfa(!val);
       toast({ title: "Update failed", description: err instanceof Error ? err.message : "", variant: "destructive" });
     }
   };
@@ -537,7 +538,7 @@ function DangerTab() {
 export function VerifyEmailBanner() {
   const me = useMe();
   const u = me.data?.user;
-  const change = useRequestEmailChange();
+  const resend = useResendVerification();
   const { toast } = useToast();
   if (!u || u.emailVerifiedAt) return null;
 
@@ -545,7 +546,8 @@ export function VerifyEmailBanner() {
     <div className="bg-amber-500/10 border-b border-amber-500/30 px-8 py-2.5 text-sm flex items-center gap-3 text-amber-900 dark:text-amber-200">
       <Mail className="w-4 h-4 shrink-0" />
       <span className="flex-1">
-        Verify your email <span className="font-mono">{u.email}</span> to unlock all governance features.
+        Verify your email <span className="font-mono">{u.email}</span> to unlock password changes,
+        email updates, MFA admin, and account deletion.
       </span>
       <Button
         size="sm"
@@ -553,10 +555,14 @@ export function VerifyEmailBanner() {
         className="h-7 text-xs"
         onClick={async () => {
           try {
-            await change.mutateAsync({ newEmail: u.email });
-            toast({ title: "Verification email re-sent" });
-          } catch {
-            toast({ title: "Could not resend", variant: "destructive" });
+            await resend.mutateAsync();
+            toast({ title: "Verification email sent" });
+          } catch (err) {
+            toast({
+              title: "Could not resend",
+              description: err instanceof Error ? err.message : "",
+              variant: "destructive",
+            });
           }
         }}
         data-testid="resend-verify"

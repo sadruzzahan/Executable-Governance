@@ -14,7 +14,7 @@ import {
   authLimiter,
 } from "./middlewares/rateLimit";
 import { csrfProtection } from "./middlewares/csrf";
-import { sessionAuth } from "./middlewares/auth";
+import { sessionAuth, requireOrgMfaSatisfied } from "./middlewares/auth";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 
 const app: Express = express();
@@ -84,6 +84,24 @@ app.use("/api/decisions/evaluate", decisionLimiter());
 app.use("/api/rules/:id/analyze", aiLimiter());
 app.use("/api/rules/:id/simulate", aiLimiter());
 app.use("/api/client-errors", clientErrorsLimiter());
+
+// 9b. Org-wide MFA enforcement gate. Allow-listed paths are the ones a
+// member without enrolled MFA still needs in order to (a) discover that
+// MFA is required, (b) enroll, (c) sign out, or (d) recover account
+// access via the password-reset flow. Everything else is blocked until
+// the user's MFA enrollment matches their org's policy.
+const MFA_GATE_ALLOW = [
+  /^\/api\/auth(\/|$)/,
+  /^\/api\/account\/mfa(\/|$)/,
+  /^\/api\/account\/verification-resend(\/|$)/,
+  /^\/api\/healthz(\/|$)/,
+  /^\/api\/client-errors(\/|$)/,
+];
+app.use("/api", (req, res, next) => {
+  if (!req.user) return next();
+  if (MFA_GATE_ALLOW.some((re) => re.test(req.originalUrl.split("?")[0]))) return next();
+  return requireOrgMfaSatisfied(req, res, next);
+});
 
 // 9. Application routes.
 app.use("/api", router);

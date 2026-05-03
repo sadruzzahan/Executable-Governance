@@ -11,7 +11,14 @@
  * so health/login/forgot-password can run without a session.
  */
 import type { NextFunction, Request, RequestHandler, Response } from "express";
-import type { User, UserSession } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import {
+  db,
+  organizationsTable,
+  mfaSecretsTable,
+  type User,
+  type UserSession,
+} from "@workspace/db";
 import { loadSessionByToken, readSessionCookie, touchSession } from "../lib/sessions";
 
 declare module "http" {
@@ -95,4 +102,42 @@ export function requireMfaPassed(
     return;
   }
   next();
+}
+
+/**
+ * Org-wide MFA enforcement.
+ *
+ * When `organizations.require_mfa` is true, every member must have
+ * enrolled in (and enabled) TOTP. Until they do, the only routes they
+ * can call are the MFA-enrollment endpoints, `/auth/me`, and `/auth/logout`
+ * — those are explicitly allow-listed in app.ts before this gate runs.
+ */
+export async function requireOrgMfaSatisfied(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  if (!req.user) return next();
+  try {
+    const [org] = await db
+      .select({ requireMfa: organizationsTable.requireMfa })
+      .from(organizationsTable)
+      .where(eq(organizationsTable.id, req.user.organizationId));
+    if (!org?.requireMfa) return next();
+    const [mfa] = await db
+      .select({ enabledAt: mfaSecretsTable.enabledAt })
+      .from(mfaSecretsTable)
+      .where(eq(mfaSecretsTable.userId, req.user.id));
+    if (mfa?.enabledAt) return next();
+    res.status(403).json({
+      error: "mfa_enrollment_required",
+      message: "Your organization requires two-factor authentication. Enroll in Settings → Security to continue.",
+      requestId: req.requestId,
+    });
+  } catch {
+    // Fail closed only on the gate failing wide open: if we cannot read
+    // the policy, do not let the request through silently. Returning 503
+    // surfaces the misconfiguration loudly without leaking detail.
+    res.status(503).json({ error: "policy_check_failed", requestId: req.requestId });
+  }
 }

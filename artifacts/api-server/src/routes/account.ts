@@ -19,7 +19,7 @@ import {
   mfaRecoveryCodesTable,
 } from "@workspace/db";
 import { send400 } from "../lib/validation";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireVerifiedEmail } from "../middlewares/auth";
 import { hashPassword, verifyPassword, strengthScore } from "../lib/passwords";
 import { checkPasswordPwned } from "../lib/hibp";
 import { mintToken } from "../lib/tokens";
@@ -58,7 +58,7 @@ router.patch("/account/profile", async (req, res) => {
 
 const EmailChangeBody = z.object({ newEmail: z.string().email().max(320) });
 
-router.post("/account/email-change-request", async (req, res) => {
+router.post("/account/email-change-request", requireVerifiedEmail, async (req, res) => {
   const parsed = EmailChangeBody.safeParse(req.body);
   if (!parsed.success) return send400(res, req, parsed.error);
   if (parsed.data.newEmail.toLowerCase() === req.user!.email.toLowerCase()) {
@@ -100,7 +100,7 @@ const PasswordBody = z.object({
   newPassword: z.string().min(12).max(256),
 });
 
-router.post("/account/password", async (req, res) => {
+router.post("/account/password", requireVerifiedEmail, async (req, res) => {
   const parsed = PasswordBody.safeParse(req.body);
   if (!parsed.success) return send400(res, req, parsed.error);
 
@@ -157,7 +157,38 @@ router.post("/account/strength-check", (req, res) => {
   res.json(strengthScore(value));
 });
 
-router.delete("/account", async (req, res) => {
+// Resend a verification email for the user's CURRENT address. This is a
+// distinct flow from /account/email-change-request, which mints a token
+// for a NEW address — that endpoint rejects same-email requests so it
+// cannot serve as the resend path.
+router.post("/account/verification-resend", async (req, res) => {
+  if (req.user!.emailVerifiedAt) {
+    res.status(400).json({
+      error: "already_verified",
+      message: "Your email is already verified.",
+      requestId: req.requestId,
+    });
+    return;
+  }
+  const { token, hash } = mintToken();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await db.insert(emailVerificationTokensTable).values({
+    userId: req.user!.id,
+    tokenHash: hash,
+    pendingEmail: null,
+    expiresAt,
+  });
+  const link = appLink(`/verify-email?token=${encodeURIComponent(token)}`);
+  await sendEmail({
+    to: req.user!.email,
+    kind: "email_verification",
+    subject: "Verify your email address",
+    body: `Click to verify your email for Executable Governance (expires in 24 hours):\n\n${link}`,
+  });
+  res.status(202).json({ ok: true });
+});
+
+router.delete("/account", requireVerifiedEmail, async (req, res) => {
   // Soft-delete entry: tag the user, queue the GDPR pipeline (downstream
   // task), and revoke every session so the user is signed out on all
   // devices immediately. Hard-delete + data export happens in the GDPR

@@ -243,12 +243,28 @@ export function useDeleteAccount() {
   });
 }
 
+export function useOrgSecurity(id: number | undefined) {
+  return useQuery<{ requireMfa: boolean }>({
+    queryKey: ["org", id, "security"],
+    enabled: typeof id === "number",
+    queryFn: () => api<{ requireMfa: boolean }>(`/organizations/${id}/security`),
+  });
+}
 export function useUpdateOrgSecurity() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars: { id: number; requireMfa: boolean }) =>
       api<{ requireMfa: boolean }>(`/organizations/${vars.id}/security`, {
         method: "PATCH",
         body: { requireMfa: vars.requireMfa },
       }),
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ["org", vars.id, "security"] }),
+  });
+}
+
+export function useResendVerification() {
+  return useMutation({
+    mutationFn: () =>
+      api<{ ok: true }>("/account/verification-resend", { method: "POST" }),
   });
 }

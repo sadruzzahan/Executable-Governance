@@ -19,7 +19,7 @@ import {
   mfaRecoveryCodesTable,
   userSessionsTable,
 } from "@workspace/db";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireVerifiedEmail } from "../middlewares/auth";
 import { send400 } from "../lib/validation";
 import {
   encryptSecret,
@@ -124,7 +124,7 @@ const DisableBody = z.object({
   password: z.string().min(1).max(256),
 });
 
-router.post("/account/mfa/disable", async (req, res) => {
+router.post("/account/mfa/disable", requireVerifiedEmail, async (req, res) => {
   const parsed = DisableBody.safeParse(req.body);
   if (!parsed.success) return send400(res, req, parsed.error);
   const [pw] = await db
