@@ -128,10 +128,10 @@ router.get("/analytics/top-rules", async (req, res): Promise<void> => {
       elem->>'ruleName' AS rule_name,
       CAST(COUNT(*) AS INT) AS eval_count,
       CAST(COUNT(*) FILTER (WHERE (elem->>'matched')::boolean = true) AS INT) AS fire_count,
-      CAST(COUNT(*) FILTER (WHERE d.outcome = 'approved') AS INT) AS approved_count,
-      CAST(COUNT(*) FILTER (WHERE d.outcome = 'denied') AS INT) AS denied_count,
-      CAST(COUNT(*) FILTER (WHERE d.outcome = 'escalated') AS INT) AS escalated_count,
-      CAST(COUNT(*) FILTER (WHERE d.outcome = 'needs_review') AS INT) AS needs_review_count
+      CAST(COUNT(*) FILTER (WHERE (elem->>'matched')::boolean = true AND d.outcome = 'approved') AS INT) AS approved_count,
+      CAST(COUNT(*) FILTER (WHERE (elem->>'matched')::boolean = true AND d.outcome = 'denied') AS INT) AS denied_count,
+      CAST(COUNT(*) FILTER (WHERE (elem->>'matched')::boolean = true AND d.outcome = 'escalated') AS INT) AS escalated_count,
+      CAST(COUNT(*) FILTER (WHERE (elem->>'matched')::boolean = true AND d.outcome = 'needs_review') AS INT) AS needs_review_count
     FROM decisions d
     CROSS JOIN LATERAL jsonb_array_elements(d.rules_applied_json) AS elem
     WHERE d.created_at >= now() - INTERVAL '30 days'

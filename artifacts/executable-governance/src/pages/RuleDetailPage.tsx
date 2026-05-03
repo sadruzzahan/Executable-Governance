@@ -62,6 +62,9 @@ export function RuleDetailPage() {
   const queryClient = useQueryClient();
   const { data: rule } = useGetRule(id, { query: { enabled: !!id, queryKey: getGetRuleQueryKey(id) } });
 
+  const tabParam = new URLSearchParams(window.location.search).get("tab");
+  const [activeTab, setActiveTab] = useState<string>(tabParam ?? "rule");
+
   const [editOpen, setEditOpen] = useState(false);
   const [name, setName] = useState("");
   const [text, setText] = useState("");
@@ -205,7 +208,7 @@ export function RuleDetailPage() {
           <span className="text-xs text-muted-foreground">Priority {rule.priority}</span>
         </div>
 
-        <Tabs defaultValue="rule" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="rule" data-testid="tab-rule">
               <FileText className="w-3.5 h-3.5 mr-1.5" /> Rule

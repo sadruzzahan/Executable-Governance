@@ -1510,6 +1510,9 @@ components:
           enum: [approved, denied, escalated, needs_review]
         confidence:
           type: integer
+        explanation:
+          type: ["string", "null"]
+          description: AI-generated one-line explanation of the decision
         scenario:
           type: ["string", "null"]
         createdAt:
@@ -1585,6 +1588,14 @@ components:
           type: integer
         totalUsers:
           type: integer
+        decisionsLast30d:
+          type: integer
+        approvalRate:
+          type: integer
+          description: Percentage 0-100
+        exceptionRate:
+          type: integer
+          description: Percentage 0-100 (needs_review + escalated)
       required:
         - totalOrganizations
         - totalPolicies
@@ -1594,6 +1605,9 @@ components:
         - publishedRules
         - draftRules
         - totalUsers
+        - decisionsLast30d
+        - approvalRate
+        - exceptionRate
 
     ActivityItem:
       type: object

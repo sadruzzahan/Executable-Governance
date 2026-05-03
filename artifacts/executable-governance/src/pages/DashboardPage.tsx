@@ -18,11 +18,12 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
-import type { DecisionVolumeDay, TopRuleItem, CoverageGapItem, RuleHealthItem } from "@workspace/api-client-react";
+import type { DecisionList, DecisionSummary, DecisionVolumeDay, TopRuleItem, CoverageGapItem, RuleHealthItem } from "@workspace/api-client-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const REFETCH = { refetchInterval: 60_000 };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const REFETCH: any = { refetchInterval: 60_000 };
 
 function timeAgo(d: string | Date) {
   const sec = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -211,7 +212,7 @@ function TopRulesPanel({ rules }: { rules?: TopRuleItem[] }) {
                 <li key={rule.ruleId} className="px-4 py-3" data-testid={`top-rule-${idx}`}>
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <div className="min-w-0">
-                      <Link href={`/rules/${rule.ruleId}`} className="text-sm font-medium hover:text-primary hover:underline line-clamp-1">
+                      <Link href={`/rules/${rule.ruleId}?tab=analysis`} className="text-sm font-medium hover:text-primary hover:underline line-clamp-1">
                         {rule.ruleName}
                       </Link>
                       <div className="text-[11px] text-muted-foreground mt-0.5">{rule.policyName}</div>
@@ -247,8 +248,8 @@ function TopRulesPanel({ rules }: { rules?: TopRuleItem[] }) {
 
 // ─── Recent Decisions Feed ────────────────────────────────────────────────────
 
-function RecentDecisionsFeed({ decisions }: { decisions?: ReturnType<typeof useListDecisions>["data"] }) {
-  const items = decisions?.decisions ?? [];
+function RecentDecisionsFeed({ decisions }: { decisions?: DecisionList }) {
+  const items: DecisionSummary[] = decisions?.decisions ?? [];
 
   return (
     <Card className="lg:col-span-2" data-testid="card-recent-decisions">
@@ -281,8 +282,8 @@ function RecentDecisionsFeed({ decisions }: { decisions?: ReturnType<typeof useL
                     {d.policyName && (
                       <div className="mt-1 text-[11px] text-muted-foreground">{d.policyName}</div>
                     )}
-                    {d.scenario && (
-                      <div className="mt-1 text-xs text-foreground/70 line-clamp-1">{d.scenario}</div>
+                    {(d.explanation || d.scenario) && (
+                      <div className="mt-1 text-xs text-foreground/70 line-clamp-1">{d.explanation ?? d.scenario}</div>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
@@ -385,7 +386,7 @@ function RuleHealthPanel({ rules }: { rules?: RuleHealthItem[] }) {
                   return (
                     <tr key={rule.ruleId} className="hover:bg-accent/20 transition-colors" data-testid={`health-row-${idx}`}>
                       <td className="px-4 py-3">
-                        <Link href={`/rules/${rule.ruleId}`} className="font-medium hover:text-primary hover:underline line-clamp-1">
+                        <Link href={`/rules/${rule.ruleId}?tab=analysis`} className="font-medium hover:text-primary hover:underline line-clamp-1">
                           {rule.ruleName}
                         </Link>
                       </td>
@@ -425,7 +426,7 @@ export function DashboardPage() {
   const { data: topRules } = useGetTopRules({ query: REFETCH });
   const { data: gaps }     = useGetCoverageGaps({ query: REFETCH });
   const { data: health }   = useGetRuleHealth({ query: REFETCH });
-  const { data: recent }   = useListDecisions({ limit: 8 }, { query: REFETCH });
+  const { data: recent }   = useListDecisions({ limit: 10 }, { query: REFETCH });
 
   const approvalSub = summary ? `${summary.approvalRate}% of ${summary.decisionsLast30d} decisions` : undefined;
   const exceptionSub = summary ? `needs review + escalated` : undefined;
@@ -442,7 +443,7 @@ export function DashboardPage() {
           <StatCard testId="stat-approval" icon={CheckCircle2} label="Approval Rate" value={summary ? `${summary.approvalRate}%` : "—"} sub={approvalSub} accent="green" />
           <StatCard testId="stat-exception" icon={AlertTriangle} label="Exception Rate" value={summary ? `${summary.exceptionRate}%` : "—"} sub={exceptionSub} accent="amber" />
           <StatCard testId="stat-rules" icon={Scale} label="Active Rules" value={summary?.publishedRules ?? 0} sub={summary ? `${summary.draftRules} draft` : undefined} accent="blue" />
-          <StatCard testId="stat-drafts" icon={FileText} label="Draft Policies" value={summary?.draftPolicies ?? 0} sub={summary ? `${summary.publishedPolicies} published` : undefined} accent="blue" />
+          <StatCard testId="stat-drafts" icon={FileText} label="Draft Rules" value={summary?.draftRules ?? 0} sub={summary ? `${summary.publishedRules} active` : undefined} accent="blue" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

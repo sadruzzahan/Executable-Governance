@@ -569,6 +569,8 @@ export interface DecisionSummary {
   action: string;
   outcome: RuleOutcome;
   confidence: number;
+  /** AI-generated one-line explanation @nullable */
+  explanation?: string | null;
   /** @nullable */
   scenario?: string | null;
   createdAt: string;

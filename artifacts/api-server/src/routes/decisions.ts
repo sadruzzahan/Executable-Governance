@@ -306,6 +306,7 @@ router.get("/decisions", async (req, res): Promise<void> => {
         action: decisionsTable.action,
         outcome: decisionsTable.outcome,
         confidence: decisionsTable.confidence,
+        explanation: decisionsTable.explanation,
         scenario: decisionsTable.scenario,
         createdAt: decisionsTable.createdAt,
         policyName: policiesTable.name,
