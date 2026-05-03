@@ -10,6 +10,7 @@ export interface AmbiguityItem {
   question: string;
   suggestedResolution: string;
   field: string | null;
+  structuredUpdate: Record<string, unknown> | null;
   resolved: boolean;
 }
 
@@ -18,6 +19,7 @@ export interface EdgeCaseItem {
   scenario: string;
   suggestedBehavior: string;
   field: string | null;
+  structuredUpdate: Record<string, unknown> | null;
   resolved: boolean;
 }
 
@@ -38,6 +40,7 @@ export interface RuleAnalysis {
 interface Props {
   ruleId: number;
   naturalLanguageText: string;
+  currentStructuredRepresentation: unknown;
   analysis: RuleAnalysis | null;
   onAnalysisComplete: (analysis: RuleAnalysis) => void;
   resolvedAmbiguities: AmbiguityItem[];
@@ -54,6 +57,7 @@ const SEVERITY_COLORS = {
 export function RuleAnalysisPanel({
   ruleId,
   naturalLanguageText,
+  currentStructuredRepresentation,
   analysis,
   onAnalysisComplete,
   resolvedAmbiguities,
@@ -68,8 +72,8 @@ export function RuleAnalysisPanel({
   const update = useUpdateRule({ mutation: { onSuccess: onRefreshRule } });
 
   const isResolved = (type: "ambiguity" | "edge", id: string) => {
-    if (type === "ambiguity") return resolvedAmbiguities.some((r) => r.id === id);
-    return resolvedEdgeCases.some((r) => r.id === id);
+    if (type === "ambiguity") return resolvedAmbiguities.some((r) => r.id === id && r.resolved);
+    return resolvedEdgeCases.some((r) => r.id === id && r.resolved);
   };
 
   const handleAnalyze = async () => {
@@ -89,9 +93,7 @@ export function RuleAnalysisPanel({
         signal: ctrl.signal,
       });
 
-      if (!resp.ok || !resp.body) {
-        throw new Error(`Request failed: ${resp.status}`);
-      }
+      if (!resp.ok || !resp.body) throw new Error(`Request failed: ${resp.status}`);
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -115,8 +117,16 @@ export function RuleAnalysisPanel({
           if (payload.type === "chunk" && payload.content) {
             setStreamText((t) => t + payload.content);
           } else if (payload.type === "done" && payload.analysis) {
-            onAnalysisComplete(payload.analysis);
+            const freshAnalysis = payload.analysis;
+            onAnalysisComplete(freshAnalysis);
             setStreamText("");
+            update.mutate({
+              id: ruleId,
+              data: {
+                resolvedAmbiguities: freshAnalysis.ambiguities.map((a) => ({ ...a, resolved: false })) as unknown,
+                resolvedEdgeCases: freshAnalysis.edgeCases.map((e) => ({ ...e, resolved: false })) as unknown,
+              },
+            });
           } else if (payload.type === "error") {
             setError(payload.error ?? "Analysis failed");
           }
@@ -131,46 +141,57 @@ export function RuleAnalysisPanel({
   };
 
   const handleAcceptAmbiguity = (item: AmbiguityItem) => {
-    const current = resolvedAmbiguities.filter((r) => r.id !== item.id);
-    update.mutate({
-      id: ruleId,
-      data: { resolvedAmbiguities: [...current, { ...item, resolved: true }] as unknown as undefined },
-    });
+    const updatedList = resolvedAmbiguities.map((r) =>
+      r.id === item.id ? { ...r, resolved: true } : r
+    );
+    const updates: Parameters<typeof update.mutate>[0]["data"] = {
+      resolvedAmbiguities: updatedList as unknown,
+    };
+    if (item.structuredUpdate && Object.keys(item.structuredUpdate).length > 0) {
+      const merged = { ...(currentStructuredRepresentation as Record<string, unknown> ?? {}), ...item.structuredUpdate };
+      updates.structuredRepresentation = merged as unknown;
+    }
+    update.mutate({ id: ruleId, data: updates });
   };
 
   const handleAcceptEdgeCase = (item: EdgeCaseItem) => {
-    const current = resolvedEdgeCases.filter((r) => r.id !== item.id);
-    update.mutate({
-      id: ruleId,
-      data: { resolvedEdgeCases: [...current, { ...item, resolved: true }] as unknown as undefined },
-    });
+    const updatedList = resolvedEdgeCases.map((r) =>
+      r.id === item.id ? { ...r, resolved: true } : r
+    );
+    const updates: Parameters<typeof update.mutate>[0]["data"] = {
+      resolvedEdgeCases: updatedList as unknown,
+    };
+    if (item.structuredUpdate && Object.keys(item.structuredUpdate).length > 0) {
+      const merged = { ...(currentStructuredRepresentation as Record<string, unknown> ?? {}), ...item.structuredUpdate };
+      updates.structuredRepresentation = merged as unknown;
+    }
+    update.mutate({ id: ruleId, data: updates });
   };
 
-  const unresolvedAmbiguities = analysis?.ambiguities.filter((a) => !isResolved("ambiguity", a.id)) ?? [];
-  const unresolvedEdgeCases = analysis?.edgeCases.filter((e) => !isResolved("edge", e.id)) ?? [];
+  const unresolvedAmbiguities = resolvedAmbiguities.filter((a) => !a.resolved);
+  const unresolvedEdgeCases = resolvedEdgeCases.filter((e) => !e.resolved);
   const totalUnresolved = unresolvedAmbiguities.length + unresolvedEdgeCases.length;
+  const hasAnalysis = analysis !== null || resolvedAmbiguities.length > 0 || resolvedEdgeCases.length > 0;
+
+  const displayAmbiguities = analysis?.ambiguities ?? resolvedAmbiguities;
+  const displayEdgeCases = analysis?.edgeCases ?? resolvedEdgeCases;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Button
-          onClick={handleAnalyze}
-          disabled={streaming}
-          data-testid="button-analyze-rule"
-          className="gap-2"
-        >
+        <Button onClick={handleAnalyze} disabled={streaming} data-testid="button-analyze-rule" className="gap-2">
           {streaming ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</>
           ) : (
             <><Sparkles className="w-4 h-4" /> Analyze Rule</>
           )}
         </Button>
-        {analysis && totalUnresolved === 0 && (
+        {hasAnalysis && totalUnresolved === 0 && (
           <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="w-3.5 h-3.5" /> All items resolved
+            <CheckCircle2 className="w-3.5 h-3.5" /> All items resolved — ready to publish
           </div>
         )}
-        {analysis && totalUnresolved > 0 && (
+        {hasAnalysis && totalUnresolved > 0 && (
           <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
             <AlertCircle className="w-3.5 h-3.5" /> {totalUnresolved} unresolved — resolve before publishing
           </div>
@@ -190,27 +211,31 @@ export function RuleAnalysisPanel({
         </Card>
       )}
 
-      {analysis && !streaming && (
+      {hasAnalysis && !streaming && (
         <div className="space-y-4">
-          {analysis.ambiguities.length > 0 && (
+          {displayAmbiguities.length > 0 && (
             <Card className="overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border flex items-center gap-2 bg-amber-500/5">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                 <span className="text-xs font-semibold uppercase tracking-wider">Ambiguities</span>
-                <Badge variant="secondary" className="ml-auto text-xs">{analysis.ambiguities.length}</Badge>
+                <Badge variant="secondary" className="ml-auto text-xs">{displayAmbiguities.length}</Badge>
               </div>
               <ul className="divide-y divide-border">
-                {analysis.ambiguities.map((item) => {
+                {displayAmbiguities.map((item) => {
                   const resolved = isResolved("ambiguity", item.id);
                   return (
                     <li key={item.id} className={`px-4 py-3 ${resolved ? "opacity-60" : ""}`} data-testid={`ambiguity-${item.id}`}>
                       <div className="text-sm text-foreground mb-1">{item.question}</div>
                       <div className="text-xs text-muted-foreground mb-2">
                         <span className="font-medium">Suggested:</span> {item.suggestedResolution}
+                        {item.field && (
+                          <span className="ml-2 font-mono text-[10px] bg-muted px-1 py-0.5 rounded">→ {item.field}</span>
+                        )}
                       </div>
                       {resolved ? (
                         <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="w-3 h-3" /> Accepted
+                          {item.field && <span className="text-muted-foreground ml-1">— applied to <code className="font-mono text-[10px]">{item.field}</code></span>}
                         </div>
                       ) : (
                         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAcceptAmbiguity(item)} data-testid={`accept-ambiguity-${item.id}`}>
@@ -224,25 +249,29 @@ export function RuleAnalysisPanel({
             </Card>
           )}
 
-          {analysis.edgeCases.length > 0 && (
+          {displayEdgeCases.length > 0 && (
             <Card className="overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border flex items-center gap-2 bg-sky-500/5">
                 <ShieldAlert className="w-3.5 h-3.5 text-sky-600" />
                 <span className="text-xs font-semibold uppercase tracking-wider">Edge Cases</span>
-                <Badge variant="secondary" className="ml-auto text-xs">{analysis.edgeCases.length}</Badge>
+                <Badge variant="secondary" className="ml-auto text-xs">{displayEdgeCases.length}</Badge>
               </div>
               <ul className="divide-y divide-border">
-                {analysis.edgeCases.map((item) => {
+                {displayEdgeCases.map((item) => {
                   const resolved = isResolved("edge", item.id);
                   return (
                     <li key={item.id} className={`px-4 py-3 ${resolved ? "opacity-60" : ""}`} data-testid={`edge-case-${item.id}`}>
                       <div className="text-sm text-foreground mb-1">{item.scenario}</div>
                       <div className="text-xs text-muted-foreground mb-2">
                         <span className="font-medium">Suggested default:</span> {item.suggestedBehavior}
+                        {item.field && (
+                          <span className="ml-2 font-mono text-[10px] bg-muted px-1 py-0.5 rounded">→ {item.field}</span>
+                        )}
                       </div>
                       {resolved ? (
                         <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="w-3 h-3" /> Accepted
+                          {item.field && <span className="text-muted-foreground ml-1">— applied to <code className="font-mono text-[10px]">{item.field}</code></span>}
                         </div>
                       ) : (
                         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAcceptEdgeCase(item)} data-testid={`accept-edge-${item.id}`}>
@@ -256,15 +285,15 @@ export function RuleAnalysisPanel({
             </Card>
           )}
 
-          {analysis.conflicts.length > 0 && (
+          {(analysis?.conflicts ?? []).length > 0 && (
             <Card className="overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border flex items-center gap-2 bg-red-500/5">
                 <GitMerge className="w-3.5 h-3.5 text-red-600" />
                 <span className="text-xs font-semibold uppercase tracking-wider">Conflicts</span>
-                <Badge variant="destructive" className="ml-auto text-xs">{analysis.conflicts.length}</Badge>
+                <Badge variant="destructive" className="ml-auto text-xs">{(analysis?.conflicts ?? []).length}</Badge>
               </div>
               <ul className="divide-y divide-border">
-                {analysis.conflicts.map((item) => (
+                {(analysis?.conflicts ?? []).map((item) => (
                   <li key={item.id} className="px-4 py-3" data-testid={`conflict-${item.id}`}>
                     <div className="flex items-start gap-2 mb-1">
                       <span className={`inline-block shrink-0 mt-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium ${SEVERITY_COLORS[item.severity]}`}>
@@ -284,7 +313,7 @@ export function RuleAnalysisPanel({
             </Card>
           )}
 
-          {analysis.ambiguities.length === 0 && analysis.edgeCases.length === 0 && analysis.conflicts.length === 0 && (
+          {displayAmbiguities.length === 0 && displayEdgeCases.length === 0 && (analysis?.conflicts ?? []).length === 0 && (
             <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 py-2">
               <CheckCircle2 className="w-4 h-4" /> No issues found. This rule is clear and conflict-free.
             </div>

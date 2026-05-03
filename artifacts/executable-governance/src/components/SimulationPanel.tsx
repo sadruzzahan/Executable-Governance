@@ -1,10 +1,16 @@
-import { useState } from "react";
-import { useSimulateRule } from "@workspace/api-client-react";
+import { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2, PlayCircle, CheckCircle2, XCircle, AlertTriangle, HelpCircle } from "lucide-react";
+
+interface SimulationResult {
+  decision: "approved" | "denied" | "escalated" | "needs_review";
+  reasoning: string;
+  conditionsMet: string[];
+  conditionsNotMet: string[];
+}
 
 interface Props {
   ruleId: number;
@@ -37,20 +43,73 @@ const DECISION_CONFIG = {
   },
 } as const;
 
-type DecisionKey = keyof typeof DECISION_CONFIG;
-
 export function SimulationPanel({ ruleId }: Props) {
   const [scenario, setScenario] = useState("");
-  const simulate = useSimulateRule();
+  const [streaming, setStreaming] = useState(false);
+  const [streamText, setStreamText] = useState("");
+  const [result, setResult] = useState<SimulationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const handleSimulate = () => {
+  const handleSimulate = async () => {
     if (!scenario.trim()) return;
-    simulate.mutate({ id: ruleId, data: { scenario: scenario.trim() } });
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    setStreaming(true);
+    setStreamText("");
+    setResult(null);
+    setError(null);
+
+    try {
+      const resp = await fetch(`/api/rules/${ruleId}/simulate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario: scenario.trim() }),
+        signal: ctrl.signal,
+      });
+
+      if (!resp.ok || !resp.body) throw new Error(`Request failed: ${resp.status}`);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = JSON.parse(line.slice(6)) as {
+            type: "chunk" | "done" | "error";
+            content?: string;
+            result?: SimulationResult;
+            error?: string;
+          };
+          if (payload.type === "chunk" && payload.content) {
+            setStreamText((t) => t + payload.content);
+          } else if (payload.type === "done" && payload.result) {
+            setResult(payload.result);
+            setStreamText("");
+          } else if (payload.type === "error") {
+            setError(payload.error ?? "Simulation failed");
+          }
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Simulation failed");
+    } finally {
+      setStreaming(false);
+    }
   };
 
-  const result = simulate.data;
-  const decisionKey = result?.decision as DecisionKey | undefined;
-  const config = decisionKey ? DECISION_CONFIG[decisionKey] : null;
+  const config = result ? DECISION_CONFIG[result.decision] : null;
 
   return (
     <div className="space-y-4">
@@ -67,21 +126,28 @@ export function SimulationPanel({ ruleId }: Props) {
       </div>
       <Button
         onClick={handleSimulate}
-        disabled={simulate.isPending || !scenario.trim()}
+        disabled={streaming || !scenario.trim()}
         data-testid="button-simulate"
         className="gap-2"
       >
-        {simulate.isPending ? (
+        {streaming ? (
           <><Loader2 className="w-4 h-4 animate-spin" /> Simulating…</>
         ) : (
           <><PlayCircle className="w-4 h-4" /> Simulate</>
         )}
       </Button>
 
-      {simulate.isError && (
-        <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
-          {simulate.error instanceof Error ? simulate.error.message : "Simulation failed"}
-        </div>
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{error}</div>
+      )}
+
+      {streaming && streamText && (
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <Loader2 className="w-3 h-3 animate-spin" /> Reasoning…
+          </div>
+          <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all max-h-28 overflow-hidden">{streamText}</pre>
+        </Card>
       )}
 
       {result && config && (

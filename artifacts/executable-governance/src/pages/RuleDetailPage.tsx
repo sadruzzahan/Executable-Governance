@@ -70,7 +70,8 @@ export function RuleDetailPage() {
   const [structured, setStructured] = useState<StructuredRule>(DEFAULT_STRUCTURED);
   const [changeNote, setChangeNote] = useState("");
 
-  const [analysis, setAnalysis] = useState<RuleAnalysis | null>(null);
+  // Local state for the in-session analysis view only (display purposes)
+  const [sessionAnalysis, setSessionAnalysis] = useState<RuleAnalysis | null>(null);
 
   useEffect(() => {
     if (!rule) return;
@@ -115,15 +116,14 @@ export function RuleDetailPage() {
     { query: { enabled: diffEnabled, queryKey: getGetRuleVersionDiffQueryKey(id, diffParams) } },
   );
 
+  // Publish gate is derived from persisted DB state — works across navigation
   const resolvedAmbiguities = toAmbiguities(rule?.resolvedAmbiguities);
   const resolvedEdgeCases = toEdgeCases(rule?.resolvedEdgeCases);
-
-  const unresolvedCount = analysis
-    ? analysis.ambiguities.filter((a) => !resolvedAmbiguities.some((r) => r.id === a.id)).length +
-      analysis.edgeCases.filter((e) => !resolvedEdgeCases.some((r) => r.id === e.id)).length
-    : 0;
-
-  const publishBlocked = analysis !== null && unresolvedCount > 0;
+  const hasPersistedAnalysis = resolvedAmbiguities.length > 0 || resolvedEdgeCases.length > 0;
+  const unresolvedCount =
+    resolvedAmbiguities.filter((a) => !a.resolved).length +
+    resolvedEdgeCases.filter((e) => !e.resolved).length;
+  const publishBlocked = hasPersistedAnalysis && unresolvedCount > 0;
 
   if (!rule) {
     return (
@@ -149,7 +149,7 @@ export function RuleDetailPage() {
         naturalLanguageText: text,
         outcome,
         priority: Number(priority),
-        structuredRepresentation: cleaned,
+        structuredRepresentation: cleaned as unknown,
         changeNote: changeNote || null,
       },
     });
@@ -249,8 +249,9 @@ export function RuleDetailPage() {
             <RuleAnalysisPanel
               ruleId={id}
               naturalLanguageText={rule.naturalLanguageText}
-              analysis={analysis}
-              onAnalysisComplete={setAnalysis}
+              currentStructuredRepresentation={rule.structuredRepresentation}
+              analysis={sessionAnalysis}
+              onAnalysisComplete={setSessionAnalysis}
               resolvedAmbiguities={resolvedAmbiguities}
               resolvedEdgeCases={resolvedEdgeCases}
               onRefreshRule={invalidate}
