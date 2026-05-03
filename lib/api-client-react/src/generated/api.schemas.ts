@@ -202,6 +202,8 @@ export interface AnalyzeRuleBody {
 export interface SimulateRuleBody {
   /** Plain-language scenario description to simulate */
   scenario: string;
+  /** Optional override rule text to simulate against (e.g. an unsaved draft). Defaults to the saved rule text when omitted. */
+  ruleText?: string;
 }
 
 export interface AmbiguityItem {
@@ -243,6 +245,7 @@ export const ConflictItemSeverity = {
   low: "low",
   medium: "medium",
   high: "high",
+  critical: "critical",
 } as const;
 
 export interface ConflictItem {

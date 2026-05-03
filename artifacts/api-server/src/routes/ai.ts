@@ -178,11 +178,44 @@ ${siblingContext}`;
       }
     }
 
-    let aiAnalysis: { ambiguities: unknown[]; edgeCases: unknown[]; conflicts: unknown[] } = { ambiguities: [], edgeCases: [], conflicts: [] };
+    interface NormAmbiguity {
+      id: string; question: string; suggestedResolution: string;
+      field?: string | null; structuredUpdate?: unknown; resolved: boolean;
+    }
+    interface NormEdgeCase {
+      id: string; scenario: string; suggestedBehavior: string;
+      field?: string | null; structuredUpdate?: unknown; resolved: boolean;
+    }
+
+    const normalizeAmbiguity = (raw: unknown, idx: number): NormAmbiguity => {
+      const a = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+      return {
+        id: typeof a.id === "string" ? a.id : `ambiguity-${idx}`,
+        question: typeof a.question === "string" ? a.question : "Unspecified ambiguity",
+        suggestedResolution: typeof a.suggestedResolution === "string" ? a.suggestedResolution : "",
+        field: typeof a.field === "string" ? a.field : null,
+        structuredUpdate: a.structuredUpdate ?? null,
+        resolved: false,
+      };
+    };
+
+    const normalizeEdgeCase = (raw: unknown, idx: number): NormEdgeCase => {
+      const e = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+      return {
+        id: typeof e.id === "string" ? e.id : `edge-${idx}`,
+        scenario: typeof e.scenario === "string" ? e.scenario : "Unspecified edge case",
+        suggestedBehavior: typeof e.suggestedBehavior === "string" ? e.suggestedBehavior : "",
+        field: typeof e.field === "string" ? e.field : null,
+        structuredUpdate: e.structuredUpdate ?? null,
+        resolved: false,
+      };
+    };
+
+    let aiAnalysis: { ambiguities: NormAmbiguity[]; edgeCases: NormEdgeCase[]; conflicts: unknown[] } = { ambiguities: [], edgeCases: [], conflicts: [] };
     try {
       const parsed = JSON.parse(fullResponse) as Record<string, unknown>;
-      if (Array.isArray(parsed.ambiguities)) aiAnalysis.ambiguities = parsed.ambiguities;
-      if (Array.isArray(parsed.edgeCases)) aiAnalysis.edgeCases = parsed.edgeCases;
+      if (Array.isArray(parsed.ambiguities)) aiAnalysis.ambiguities = parsed.ambiguities.map(normalizeAmbiguity);
+      if (Array.isArray(parsed.edgeCases)) aiAnalysis.edgeCases = parsed.edgeCases.map(normalizeEdgeCase);
       if (Array.isArray(parsed.conflicts)) aiAnalysis.conflicts = parsed.conflicts;
     } catch {
       res.write(`data: ${JSON.stringify({ type: "error", error: "Model returned malformed JSON" })}\n\n`);
