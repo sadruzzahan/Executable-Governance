@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, AlertTriangle, HelpCircle, ChevronLeft, ChevronRight, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,15 +40,21 @@ export function DecisionsPage() {
   const [policyFilter, setPolicyFilter] = useState<string>("all");
   const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
   const [actorFilter, setActorFilter] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [page, setPage] = useState(1);
 
   const { data: policiesData } = useListPolicies();
   const policies = policiesData ?? [];
 
+  const resetPage = () => setPage(1);
+
   const params = {
-    policyId: policyFilter !== "all" ? Number(policyFilter) : null,
-    outcome: outcomeFilter !== "all" ? (outcomeFilter as Outcome) : null,
-    actor: actorFilter.trim() || null,
+    ...(policyFilter !== "all" && { policyId: Number(policyFilter) }),
+    ...(outcomeFilter !== "all" && { outcome: outcomeFilter as Outcome }),
+    ...(actorFilter.trim() && { actor: actorFilter.trim() }),
+    ...(dateFrom && { dateFrom }),
+    ...(dateTo && { dateTo }),
     page,
     limit: PAGE_SIZE,
   };
@@ -76,7 +81,7 @@ export function DecisionsPage() {
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Filter</span>
-          <Select value={policyFilter} onValueChange={(v) => { setPolicyFilter(v); setPage(1); }}>
+          <Select value={policyFilter} onValueChange={(v) => { setPolicyFilter(v); resetPage(); }}>
             <SelectTrigger className="w-48" data-testid="filter-policy">
               <SelectValue placeholder="All policies" />
             </SelectTrigger>
@@ -87,7 +92,7 @@ export function DecisionsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={outcomeFilter} onValueChange={(v) => { setOutcomeFilter(v); setPage(1); }}>
+          <Select value={outcomeFilter} onValueChange={(v) => { setOutcomeFilter(v); resetPage(); }}>
             <SelectTrigger className="w-44" data-testid="filter-outcome">
               <SelectValue placeholder="All outcomes" />
             </SelectTrigger>
@@ -101,11 +106,40 @@ export function DecisionsPage() {
           </Select>
           <Input
             value={actorFilter}
-            onChange={(e) => { setActorFilter(e.target.value); setPage(1); }}
+            onChange={(e) => { setActorFilter(e.target.value); resetPage(); }}
             placeholder="Filter by actor…"
-            className="w-52 text-sm"
+            className="w-48 text-sm"
             data-testid="filter-actor"
           />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">From</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); resetPage(); }}
+              className="h-9 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              data-testid="filter-date-from"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">To</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); resetPage(); }}
+              className="h-9 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              data-testid="filter-date-to"
+            />
+          </div>
+          {(policyFilter !== "all" || outcomeFilter !== "all" || actorFilter || dateFrom || dateTo) && (
+            <button
+              onClick={() => { setPolicyFilter("all"); setOutcomeFilter("all"); setActorFilter(""); setDateFrom(""); setDateTo(""); resetPage(); }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-clear-filters"
+            >
+              Clear
+            </button>
+          )}
           {total > 0 && (
             <span className="ml-auto text-xs text-muted-foreground tabular-nums">{total} decision{total !== 1 ? "s" : ""}</span>
           )}
