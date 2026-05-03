@@ -505,11 +505,11 @@ paths:
               $ref: "#/components/schemas/SimulateRuleBody"
       responses:
         "200":
-          description: Simulation result
+          description: Server-sent events stream; final event contains full RuleSimulationResult
           content:
-            application/json:
+            text/event-stream:
               schema:
-                $ref: "#/components/schemas/RuleSimulationResult"
+                type: string
         "404":
           description: Rule not found
           content:

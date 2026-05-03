@@ -15,6 +15,32 @@ interface StructuredRep {
   scope?: string;
 }
 
+function toNumericRange(op: string, val: number): [number, number] {
+  const n = op.trim().toLowerCase().replace(/\s+/g, "");
+  switch (n) {
+    case "<":  case "lt":  return [-Infinity, val - Number.EPSILON];
+    case "<=": case "lte": case "le": return [-Infinity, val];
+    case ">":  case "gt":  return [val + Number.EPSILON, Infinity];
+    case ">=": case "gte": case "ge": return [val, Infinity];
+    case "=":  case "==":  case "eq": return [val, val];
+    default: return [-Infinity, Infinity];
+  }
+}
+
+function rangesOverlap([aLo, aHi]: [number, number], [bLo, bHi]: [number, number]): boolean {
+  return aLo <= bHi && bLo <= aHi;
+}
+
+function conditionsOverlap(a: StructuredRep, b: StructuredRep): boolean {
+  if (a.field !== b.field) return false;
+  const aVal = typeof a.value === "number" ? a.value : parseFloat(String(a.value));
+  const bVal = typeof b.value === "number" ? b.value : parseFloat(String(b.value));
+  if (!isFinite(aVal) || !isFinite(bVal)) {
+    return String(a.value) === String(b.value);
+  }
+  return rangesOverlap(toNumericRange(a.operator ?? "=", aVal), toNumericRange(b.operator ?? "=", bVal));
+}
+
 function detectServerConflicts(
   ruleId: number,
   ruleStr: StructuredRep | null,
@@ -27,7 +53,7 @@ function detectServerConflicts(
     .filter((s) => {
       const sibStr = s.structuredRepresentation as StructuredRep | null;
       if (!sibStr?.field) return false;
-      return sibStr.field === ruleStr.field && s.outcome !== ruleOutcome;
+      return s.outcome !== ruleOutcome && conditionsOverlap(ruleStr, sibStr);
     })
     .map((s) => {
       const sibStr = s.structuredRepresentation as StructuredRep;
@@ -40,9 +66,9 @@ function detectServerConflicts(
         conflictingRuleId: s.id,
         conflictingRuleName: s.name,
         description:
-          `Both rules evaluate the same field ("${ruleStr.field}") but produce different outcomes: ` +
-          `this rule (${ownOp} ${ownVal} → ${ruleOutcome}) vs. "${s.name}" (${sibOp} ${sibVal} → ${s.outcome}). ` +
-          `Ensure the condition ranges are mutually exclusive.`,
+          `Overlapping conditions on field "${ruleStr.field}": ` +
+          `this rule (${ownOp} ${ownVal} → ${ruleOutcome}) and "${s.name}" (${sibOp} ${sibVal} → ${s.outcome}) ` +
+          `can both match the same inputs with different outcomes. Ensure the condition ranges are mutually exclusive.`,
         severity: "high" as const,
       };
     });

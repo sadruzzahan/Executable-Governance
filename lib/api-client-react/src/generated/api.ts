@@ -39,7 +39,6 @@ import type {
   PolicyWithRules,
   PolicyWithStats,
   Rule,
-  RuleSimulationResult,
   RuleVersion,
   RuleVersionDiff,
   RuleWithVersions,
@@ -1856,8 +1855,8 @@ export const simulateRule = async (
   id: number,
   simulateRuleBody: SimulateRuleBody,
   options?: RequestInit,
-): Promise<RuleSimulationResult> => {
-  return customFetch<RuleSimulationResult>(getSimulateRuleUrl(id), {
+): Promise<string> => {
+  return customFetch<string>(getSimulateRuleUrl(id), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },

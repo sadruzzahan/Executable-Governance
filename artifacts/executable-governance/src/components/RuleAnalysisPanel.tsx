@@ -3,7 +3,8 @@ import { useUpdateRule } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Loader2, Sparkles, ShieldAlert, AlertCircle, GitMerge } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { AlertTriangle, CheckCircle2, Loader2, Sparkles, ShieldAlert, AlertCircle, GitMerge, Pencil, X } from "lucide-react";
 
 export interface AmbiguityItem {
   id: string;
@@ -53,6 +54,98 @@ const SEVERITY_COLORS = {
   medium: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
   low: "bg-sky-500/10 text-sky-600 dark:text-sky-300 border-sky-500/20",
 };
+
+function applyStructuredUpdate(
+  current: unknown,
+  item: AmbiguityItem | EdgeCaseItem,
+  overrideText?: string
+): { structuredUpdate: Record<string, unknown> | null } {
+  if (overrideText && item.field) {
+    const patch: Record<string, unknown> = { [item.field]: overrideText };
+    return { structuredUpdate: patch };
+  }
+  return { structuredUpdate: item.structuredUpdate };
+}
+
+function ItemActions({
+  item,
+  type,
+  onAccept,
+  onOverride,
+}: {
+  item: AmbiguityItem | EdgeCaseItem;
+  type: "ambiguity" | "edge";
+  onAccept: () => void;
+  onOverride: (overrideText: string) => void;
+}) {
+  const [showOverride, setShowOverride] = useState(false);
+  const [overrideText, setOverrideText] = useState("");
+  const prefix = type === "ambiguity" ? "ambiguity" : "edge";
+
+  if (showOverride) {
+    return (
+      <div className="flex items-center gap-2 mt-1">
+        <Input
+          value={overrideText}
+          onChange={(e) => setOverrideText(e.target.value)}
+          placeholder="Enter your own resolution…"
+          className="h-7 text-xs flex-1"
+          data-testid={`override-input-${prefix}-${item.id}`}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && overrideText.trim()) {
+              onOverride(overrideText.trim());
+              setShowOverride(false);
+            }
+          }}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          disabled={!overrideText.trim()}
+          onClick={() => { onOverride(overrideText.trim()); setShowOverride(false); }}
+          data-testid={`apply-override-${prefix}-${item.id}`}
+        >
+          Apply
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2"
+          onClick={() => setShowOverride(false)}
+          aria-label="Cancel override"
+        >
+          <X className="w-3 h-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs"
+        onClick={onAccept}
+        data-testid={`accept-${prefix}-${item.id}`}
+      >
+        Accept suggestion
+      </Button>
+      {item.field && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs text-muted-foreground"
+          onClick={() => setShowOverride(true)}
+          data-testid={`override-${prefix}-${item.id}`}
+        >
+          <Pencil className="w-3 h-3 mr-1" /> Override
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export function RuleAnalysisPanel({
   ruleId,
@@ -140,29 +233,31 @@ export function RuleAnalysisPanel({
     }
   };
 
-  const handleAcceptAmbiguity = (item: AmbiguityItem) => {
+  const resolveAmbiguity = (item: AmbiguityItem, overrideText?: string) => {
+    const { structuredUpdate } = applyStructuredUpdate(currentStructuredRepresentation, item, overrideText);
     const updatedList = resolvedAmbiguities.map((r) =>
-      r.id === item.id ? { ...r, resolved: true } : r
+      r.id === item.id ? { ...r, resolved: true, ...(overrideText ? { suggestedResolution: overrideText } : {}) } : r
     );
     const updates: Parameters<typeof update.mutate>[0]["data"] = {
       resolvedAmbiguities: updatedList as unknown,
     };
-    if (item.structuredUpdate && Object.keys(item.structuredUpdate).length > 0) {
-      const merged = { ...(currentStructuredRepresentation as Record<string, unknown> ?? {}), ...item.structuredUpdate };
+    if (structuredUpdate && Object.keys(structuredUpdate).length > 0) {
+      const merged = { ...(currentStructuredRepresentation as Record<string, unknown> ?? {}), ...structuredUpdate };
       updates.structuredRepresentation = merged as unknown;
     }
     update.mutate({ id: ruleId, data: updates });
   };
 
-  const handleAcceptEdgeCase = (item: EdgeCaseItem) => {
+  const resolveEdgeCase = (item: EdgeCaseItem, overrideText?: string) => {
+    const { structuredUpdate } = applyStructuredUpdate(currentStructuredRepresentation, item, overrideText);
     const updatedList = resolvedEdgeCases.map((r) =>
-      r.id === item.id ? { ...r, resolved: true } : r
+      r.id === item.id ? { ...r, resolved: true, ...(overrideText ? { suggestedBehavior: overrideText } : {}) } : r
     );
     const updates: Parameters<typeof update.mutate>[0]["data"] = {
       resolvedEdgeCases: updatedList as unknown,
     };
-    if (item.structuredUpdate && Object.keys(item.structuredUpdate).length > 0) {
-      const merged = { ...(currentStructuredRepresentation as Record<string, unknown> ?? {}), ...item.structuredUpdate };
+    if (structuredUpdate && Object.keys(structuredUpdate).length > 0) {
+      const merged = { ...(currentStructuredRepresentation as Record<string, unknown> ?? {}), ...structuredUpdate };
       updates.structuredRepresentation = merged as unknown;
     }
     update.mutate({ id: ruleId, data: updates });
@@ -238,9 +333,12 @@ export function RuleAnalysisPanel({
                           {item.field && <span className="text-muted-foreground ml-1">— applied to <code className="font-mono text-[10px]">{item.field}</code></span>}
                         </div>
                       ) : (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAcceptAmbiguity(item)} data-testid={`accept-ambiguity-${item.id}`}>
-                          Accept suggestion
-                        </Button>
+                        <ItemActions
+                          item={item}
+                          type="ambiguity"
+                          onAccept={() => resolveAmbiguity(item)}
+                          onOverride={(text) => resolveAmbiguity(item, text)}
+                        />
                       )}
                     </li>
                   );
@@ -274,9 +372,12 @@ export function RuleAnalysisPanel({
                           {item.field && <span className="text-muted-foreground ml-1">— applied to <code className="font-mono text-[10px]">{item.field}</code></span>}
                         </div>
                       ) : (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAcceptEdgeCase(item)} data-testid={`accept-edge-${item.id}`}>
-                          Accept suggestion
-                        </Button>
+                        <ItemActions
+                          item={item}
+                          type="edge"
+                          onAccept={() => resolveEdgeCase(item)}
+                          onOverride={(text) => resolveEdgeCase(item, text)}
+                        />
                       )}
                     </li>
                   );

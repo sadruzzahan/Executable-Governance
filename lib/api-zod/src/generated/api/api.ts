@@ -538,19 +538,6 @@ export const SimulateRuleBody = zod.object({
     .describe("Plain-language scenario description to simulate"),
 });
 
-export const SimulateRuleResponse = zod.object({
-  decision: zod.enum(["approved", "denied", "escalated", "needs_review"]),
-  reasoning: zod
-    .string()
-    .describe("Plain-language explanation of the decision"),
-  conditionsMet: zod
-    .array(zod.string())
-    .describe("Which conditions were satisfied"),
-  conditionsNotMet: zod
-    .array(zod.string())
-    .describe("Which conditions were not satisfied"),
-});
-
 /**
  * @summary Diff two versions of a rule
  */
