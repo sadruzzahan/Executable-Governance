@@ -335,7 +335,7 @@ function CoverageGapsPanel({ gaps }: { gaps?: CoverageGapItem[] }) {
               <li key={gap.policyId} className="px-4 py-3 hover:bg-accent/20 transition-colors" data-testid={`gap-item-${idx}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <Link href={`/policies/${gap.policyId}`} className="text-sm font-medium hover:text-primary hover:underline truncate block">
+                    <Link href={`/rules/new?policyId=${gap.policyId}`} className="text-sm font-medium hover:text-primary hover:underline truncate block">
                       {gap.policyName}
                     </Link>
                     <div className="text-[11px] text-muted-foreground mt-0.5">{gap.organizationName}</div>
