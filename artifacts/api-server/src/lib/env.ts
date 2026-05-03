@@ -95,6 +95,18 @@ const SPECS: EnvSpec[] = [
     description: "pino log level. Default 'info'.",
   },
   {
+    name: "MFA_SECRET_KEY",
+    required: false,
+    description:
+      "Server key used to encrypt TOTP secrets at rest. Required in production; falls back to a key derived from DATABASE_URL in dev.",
+  },
+  {
+    name: "APP_BASE_URL",
+    required: false,
+    description:
+      "Absolute base URL of the public app (used to build links inside outbound emails). Defaults to https://${REPLIT_DEV_DOMAIN} in dev.",
+  },
+  {
     name: "REPLIT_DEV_DOMAIN",
     required: false,
     description:

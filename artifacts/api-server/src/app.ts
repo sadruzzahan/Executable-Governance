@@ -11,8 +11,10 @@ import {
   aiLimiter,
   decisionLimiter,
   clientErrorsLimiter,
+  authLimiter,
 } from "./middlewares/rateLimit";
 import { csrfProtection } from "./middlewares/csrf";
+import { sessionAuth } from "./middlewares/auth";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 
 const app: Express = express();
@@ -62,13 +64,22 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
-// 6. CSRF (no-op until cookie sessions land — see middleware for details).
+// 6. Session-cookie authentication. Runs before CSRF so requireAuth
+// downstream sees a populated req.user; CSRF then enforces double-submit
+// only when a session cookie is present.
+app.use(sessionAuth());
+
+// 7. CSRF — activates whenever the eg_session cookie is present.
 app.use(csrfProtection());
 
-// 7. Global per-IP rate limit as a coarse safety net.
+// 8. Global per-IP rate limit as a coarse safety net.
 app.use(globalLimiter());
 
-// 8. Per-route limiters layered on top of the global one.
+// 9. Per-route limiters layered on top of the global one.
+app.use("/api/auth/login", authLimiter());
+app.use("/api/auth/forgot-password", authLimiter());
+app.use("/api/auth/reset-password", authLimiter());
+app.use("/api/auth/verify-email", authLimiter());
 app.use("/api/decisions/evaluate", decisionLimiter());
 app.use("/api/rules/:id/analyze", aiLimiter());
 app.use("/api/rules/:id/simulate", aiLimiter());

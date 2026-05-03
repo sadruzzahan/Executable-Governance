@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Request, RequestHandler } from "express";
+import { getEnv } from "../lib/env";
 
 const CSRF_COOKIE = "csrf_token";
 const CSRF_HEADER = "x-csrf-token";
@@ -14,7 +15,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 function hasSessionCookie(req: Request): boolean {
   const cookieHeader = req.header("cookie");
   if (!cookieHeader) return false;
-  return /(?:^|;\s*)(session|sid|connect\.sid)=/.test(cookieHeader);
+  return /(?:^|;\s*)(eg_session|session|sid|connect\.sid)=/.test(cookieHeader);
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -43,9 +44,22 @@ export function csrfProtection(): RequestHandler {
 
     if (!token) {
       token = randomBytes(32).toString("hex");
-      res.setHeader(
+      const isProd = getEnv().NODE_ENV === "production";
+      // Use appendHeader so we don't clobber other Set-Cookie headers (e.g.
+      // the eg_session cookie that the login route sets on the same response).
+      res.appendHeader(
         "Set-Cookie",
-        `${CSRF_COOKIE}=${encodeURIComponent(token)}; Path=/; SameSite=Strict; Secure; Max-Age=3600`,
+        [
+          `${CSRF_COOKIE}=${encodeURIComponent(token)}`,
+          "Path=/",
+          // SameSite=Lax pairs with the session cookie; Strict would break
+          // CSRF echo on the very first navigation following a redirect.
+          "SameSite=Lax",
+          isProd ? "Secure" : "",
+          "Max-Age=3600",
+        ]
+          .filter(Boolean)
+          .join("; "),
       );
     }
 

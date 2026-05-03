@@ -9,8 +9,21 @@ import {
   ShieldCheck,
   FlaskConical,
   ListChecks,
+  Settings,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMe, useLogout } from "@/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { VerifyEmailBanner } from "@/pages/SettingsPage";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, testId: "nav-dashboard" },
@@ -23,12 +36,29 @@ const navItems = [
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const me = useMe();
+  const logout = useLogout();
+  const qc = useQueryClient();
 
   const isActive = (href: string) => {
     if (href === "/") return location === "/";
     return location === href || location.startsWith(href + "/");
   };
+
+  const onLogout = async () => {
+    try { await logout.mutateAsync(); } catch { /* ignore */ }
+    qc.clear();
+    navigate("/login");
+  };
+
+  const initials = me.data?.user.name
+    ?.split(/\s+/)
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() ?? "?";
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -64,11 +94,54 @@ export function AppLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-        <div className="px-5 py-4 border-t border-sidebar-border text-[11px] text-sidebar-foreground/50 leading-relaxed">
-          v0.1 · Compliance Workstation
+        <div className="px-3 py-3 border-t border-sidebar-border">
+          {me.data ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-sidebar-accent/50 transition-colors"
+                  data-testid="user-menu-trigger"
+                >
+                  <div className="w-7 h-7 rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-[11px] font-semibold flex items-center justify-center overflow-hidden shrink-0">
+                    {me.data.user.avatarUrl ? (
+                      <img src={me.data.user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="text-xs font-medium truncate">{me.data.user.name}</div>
+                    <div className="text-[10px] text-sidebar-foreground/60 truncate uppercase tracking-wider">
+                      {me.data.user.role}
+                    </div>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  {me.data.user.email}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/account" data-testid="menu-settings">
+                    <Settings className="w-4 h-4 mr-2" /> Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={onLogout} data-testid="menu-logout">
+                  <LogOut className="w-4 h-4 mr-2" /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="px-2 py-2 text-[11px] text-sidebar-foreground/50">v0.1 · Compliance Workstation</div>
+          )}
         </div>
       </aside>
-      <main className="flex-1 min-w-0 overflow-x-auto">{children}</main>
+      <main className="flex-1 min-w-0 overflow-x-auto">
+        <VerifyEmailBanner />
+        {children}
+      </main>
     </div>
   );
 }

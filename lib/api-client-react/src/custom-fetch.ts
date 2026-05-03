@@ -358,9 +358,28 @@ export async function customFetch<T = unknown>(
     }
   }
 
+  // Cookie-session double-submit CSRF: read the csrf_token cookie set by
+  // the API and echo it on every state-changing request. Skipped when an
+  // explicit Authorization header is present (bearer auth has no ambient
+  // credential and the server therefore exempts it from CSRF).
+  if (
+    typeof document !== "undefined" &&
+    !headers.has("x-csrf-token") &&
+    !headers.has("authorization") &&
+    method !== "GET" &&
+    method !== "HEAD" &&
+    method !== "OPTIONS"
+  ) {
+    const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+    if (csrfMatch) headers.set("x-csrf-token", decodeURIComponent(csrfMatch[1]));
+  }
+
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  // Always send cookies on same-origin requests so the eg_session cookie
+  // travels with every API call from the SPA.
+  const credentials: RequestCredentials = init.credentials ?? "same-origin";
+  const response = await fetch(input, { ...init, method, headers, credentials });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
