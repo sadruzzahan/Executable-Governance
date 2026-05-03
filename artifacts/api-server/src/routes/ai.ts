@@ -4,8 +4,13 @@ import { eq, and, ne } from "drizzle-orm";
 import { db, rulesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { AnalyzeRuleParams, AnalyzeRuleBody, SimulateRuleParams, SimulateRuleBody } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
+import { requirePermission } from "../middlewares/rbac";
+import { loadOrgScopedRule } from "../lib/orgScope";
+import { auditWrite } from "../lib/audit";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
 interface StructuredRep {
   kind?: string;
@@ -77,18 +82,21 @@ function detectServerConflicts(
 
 // SSE streaming endpoint — response is text/event-stream with {type:"chunk"|"done"|"error"} events.
 // Consume on the client via raw fetch + ReadableStream; the generated orval hook is not suitable for SSE.
-router.post("/rules/:id/analyze", async (req, res): Promise<void> => {
+router.post("/rules/:id/analyze", requirePermission("rule.analyze"), async (req, res): Promise<void> => {
   const params = AnalyzeRuleParams.safeParse(req.params);
   if (!params.success) { send400(res, req, params.error); return; }
   const body = AnalyzeRuleBody.safeParse(req.body);
   if (!body.success) { send400(res, req, body.error); return; }
 
+  const scoped = await loadOrgScopedRule(params.data.id, req.user!.organizationId);
+  if (!scoped) { res.status(404).json({ error: "Rule not found" }); return; }
   const [rule] = await db
     .select({ id: rulesTable.id, name: rulesTable.name, policyId: rulesTable.policyId, outcome: rulesTable.outcome, structuredRepresentation: rulesTable.structuredRepresentation })
     .from(rulesTable)
     .where(eq(rulesTable.id, params.data.id));
 
   if (!rule) { res.status(404).json({ error: "Rule not found" }); return; }
+  auditWrite({ req, action: "rule.analyze", resourceType: "rule", resourceId: rule.id, result: "success" });
 
   const siblings = await db
     .select({ id: rulesTable.id, name: rulesTable.name, naturalLanguageText: rulesTable.naturalLanguageText, outcome: rulesTable.outcome, status: rulesTable.status, structuredRepresentation: rulesTable.structuredRepresentation })
@@ -274,18 +282,21 @@ ${siblingContext}`;
 
 // SSE streaming endpoint — response is text/event-stream with {type:"chunk"|"done"|"error"} events.
 // Consume on the client via raw fetch + ReadableStream; the generated orval hook is not suitable for SSE.
-router.post("/rules/:id/simulate", async (req, res): Promise<void> => {
+router.post("/rules/:id/simulate", requirePermission("rule.simulate"), async (req, res): Promise<void> => {
   const params = SimulateRuleParams.safeParse(req.params);
   if (!params.success) { send400(res, req, params.error); return; }
   const body = SimulateRuleBody.safeParse(req.body);
   if (!body.success) { send400(res, req, body.error); return; }
 
+  const scoped = await loadOrgScopedRule(params.data.id, req.user!.organizationId);
+  if (!scoped) { res.status(404).json({ error: "Rule not found" }); return; }
   const [rule] = await db
     .select({ id: rulesTable.id, name: rulesTable.name, naturalLanguageText: rulesTable.naturalLanguageText, outcome: rulesTable.outcome, structuredRepresentation: rulesTable.structuredRepresentation })
     .from(rulesTable)
     .where(eq(rulesTable.id, params.data.id));
 
   if (!rule) { res.status(404).json({ error: "Rule not found" }); return; }
+  auditWrite({ req, action: "rule.simulate", resourceType: "rule", resourceId: rule.id, result: "success" });
 
   // Use caller-supplied ruleText (e.g. unsaved draft) when provided, else fall back to DB value
   const effectiveRuleText = body.data.ruleText ?? rule.naturalLanguageText;

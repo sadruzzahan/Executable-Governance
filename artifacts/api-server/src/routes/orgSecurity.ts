@@ -8,6 +8,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, organizationsTable, mfaSecretsTable } from "@workspace/db";
 import { requireAuth, requireVerifiedEmail } from "../middlewares/auth";
+import { requirePermission } from "../middlewares/rbac";
+import { auditWrite } from "../lib/audit";
 import { send400 } from "../lib/validation";
 
 const router: IRouter = Router();
@@ -16,7 +18,7 @@ router.use(requireAuth);
 const SecurityBody = z.object({ requireMfa: z.boolean() });
 const SecurityParams = z.object({ id: z.coerce.number().int().positive() });
 
-router.get("/organizations/:id/security", async (req, res) => {
+router.get("/organizations/:id/security", requirePermission("organization.read"), async (req, res) => {
   const params = SecurityParams.safeParse(req.params);
   if (!params.success) return send400(res, req, params.error);
   // Members can read their own org's policy; cross-org reads are
@@ -36,18 +38,21 @@ router.get("/organizations/:id/security", async (req, res) => {
   res.json({ requireMfa: row.requireMfa });
 });
 
-router.patch("/organizations/:id/security", requireVerifiedEmail, async (req, res) => {
+router.patch(
+  "/organizations/:id/security",
+  requireVerifiedEmail,
+  requirePermission("organization.security"),
+  async (req, res) => {
   const params = SecurityParams.safeParse(req.params);
   if (!params.success) return send400(res, req, params.error);
   const body = SecurityBody.safeParse(req.body);
   if (!body.success) return send400(res, req, body.error);
 
-  if (req.user!.role !== "admin" || req.user!.organizationId !== params.data.id) {
-    res.status(403).json({
-      error: "forbidden",
-      message: "Only org admins can change security policy.",
-      requestId: req.requestId,
-    });
+  // Cross-org safety net: even an admin can only change their own
+  // organization's security policy. The matrix already gates the verb;
+  // this stops an admin of org A from PATCH-ing org B's row.
+  if (req.user!.organizationId !== params.data.id) {
+    res.status(404).json({ error: "not_found", requestId: req.requestId });
     return;
   }
 
@@ -78,6 +83,14 @@ router.patch("/organizations/:id/security", requireVerifiedEmail, async (req, re
     res.status(404).json({ error: "not_found", requestId: req.requestId });
     return;
   }
+  auditWrite({
+    req,
+    action: "organization.security",
+    resourceType: "organization",
+    resourceId: row.id,
+    result: "success",
+    metadata: { requireMfa: row.requireMfa },
+  });
   res.json({ requireMfa: row.requireMfa });
 });
 

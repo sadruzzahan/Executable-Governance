@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMe, useLogout } from "@/lib/auth";
+import type { Action } from "@workspace/db";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DropdownMenu,
@@ -25,14 +26,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { VerifyEmailBanner } from "@/pages/SettingsPage";
 
-const navItems = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  testId: string;
+  /** Capability required to surface this entry; omitted = always shown */
+  requires?: Action;
+};
+
+const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, testId: "nav-dashboard" },
-  { href: "/policies", label: "Policies", icon: FileText, testId: "nav-policies" },
-  { href: "/rules", label: "Rules", icon: Scale, testId: "nav-rules" },
-  { href: "/organizations", label: "Organizations", icon: Building2, testId: "nav-organizations" },
-  { href: "/users", label: "Users", icon: Users, testId: "nav-users" },
-  { href: "/decisions", label: "Decisions", icon: ListChecks, testId: "nav-decisions" },
-  { href: "/playground", label: "Playground", icon: FlaskConical, testId: "nav-playground" },
+  { href: "/policies", label: "Policies", icon: FileText, testId: "nav-policies", requires: "policy.read" },
+  { href: "/rules", label: "Rules", icon: Scale, testId: "nav-rules", requires: "rule.read" },
+  { href: "/organizations", label: "Organizations", icon: Building2, testId: "nav-organizations", requires: "organization.read" },
+  { href: "/users", label: "Users", icon: Users, testId: "nav-users", requires: "user.read" },
+  { href: "/decisions", label: "Decisions", icon: ListChecks, testId: "nav-decisions", requires: "decision.read" },
+  { href: "/playground", label: "Playground", icon: FlaskConical, testId: "nav-playground", requires: "decision.evaluate" },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -73,7 +83,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map((item) => {
+          {navItems
+            .filter((item) => !item.requires || (me.data?.capabilities?.includes(item.requires) ?? false))
+            .map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (

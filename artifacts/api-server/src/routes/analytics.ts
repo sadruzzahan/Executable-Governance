@@ -14,19 +14,29 @@ import {
   GetRecentActivityQueryParams,
   GetPolicyBreakdownQueryParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
+import { requirePermission } from "../middlewares/rbac";
 
 const router: IRouter = Router();
+router.use(requireAuth);
+router.use(requirePermission("analytics.read"));
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
 
 router.get("/analytics/summary", async (req, res): Promise<void> => {
   const query = GetAnalyticsSummaryQueryParams.safeParse(req.query);
   if (!query.success) { send400(res, req, query.error); return; }
-  const orgId = query.data.organizationId;
+  // Cross-tenant isolation: the public org-id filter is now a noop —
+  // every analytics roll-up is forced to the caller's org.
+  void query;
+  const orgId: number = req.user!.organizationId;
 
-  const [orgCount] = await db.select({ c: sql<number>`cast(count(*) as int)` }).from(organizationsTable);
+  const [orgCount] = await db
+    .select({ c: sql<number>`cast(count(*) as int)` })
+    .from(organizationsTable)
+    .where(eq(organizationsTable.id, orgId));
 
-  const policyConditions = orgId != null ? [eq(policiesTable.organizationId, orgId)] : [];
+  const policyConditions = [eq(policiesTable.organizationId, orgId)];
   const [policyTotals] = await db
     .select({
       total: sql<number>`cast(count(*) as int)`,
@@ -36,29 +46,23 @@ router.get("/analytics/summary", async (req, res): Promise<void> => {
     .from(policiesTable)
     .where(policyConditions.length > 0 ? and(...policyConditions) : undefined);
 
-  const ruleQuery = orgId != null
-    ? db.select({
-        total: sql<number>`cast(count(*) as int)`,
-        published: sql<number>`cast(coalesce(sum(case when ${rulesTable.status} = 'published' then 1 else 0 end), 0) as int)`,
-        draft: sql<number>`cast(coalesce(sum(case when ${rulesTable.status} = 'draft' then 1 else 0 end), 0) as int)`,
-      }).from(rulesTable).leftJoin(policiesTable, eq(rulesTable.policyId, policiesTable.id)).where(eq(policiesTable.organizationId, orgId))
-    : db.select({
-        total: sql<number>`cast(count(*) as int)`,
-        published: sql<number>`cast(coalesce(sum(case when ${rulesTable.status} = 'published' then 1 else 0 end), 0) as int)`,
-        draft: sql<number>`cast(coalesce(sum(case when ${rulesTable.status} = 'draft' then 1 else 0 end), 0) as int)`,
-      }).from(rulesTable);
-  const [ruleTotals] = await ruleQuery;
+  const [ruleTotals] = await db.select({
+    total: sql<number>`cast(count(*) as int)`,
+    published: sql<number>`cast(coalesce(sum(case when ${rulesTable.status} = 'published' then 1 else 0 end), 0) as int)`,
+    draft: sql<number>`cast(coalesce(sum(case when ${rulesTable.status} = 'draft' then 1 else 0 end), 0) as int)`,
+  }).from(rulesTable).leftJoin(policiesTable, eq(rulesTable.policyId, policiesTable.id)).where(eq(policiesTable.organizationId, orgId));
 
-  const userConditions = orgId != null ? [eq(usersTable.organizationId, orgId)] : [];
+  const userConditions = [eq(usersTable.organizationId, orgId)];
   const [userCount] = await db
     .select({ c: sql<number>`cast(count(*) as int)` })
     .from(usersTable)
     .where(userConditions.length > 0 ? and(...userConditions) : undefined);
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const decisionCond = orgId != null
-    ? and(gte(decisionsTable.createdAt, thirtyDaysAgo), eq(decisionsTable.organizationId, orgId))
-    : gte(decisionsTable.createdAt, thirtyDaysAgo);
+  const decisionCond = and(
+    gte(decisionsTable.createdAt, thirtyDaysAgo),
+    eq(decisionsTable.organizationId, orgId),
+  );
   const [decisionStats] = await db.select({
     total: sql<number>`cast(count(*) as int)`,
     approvedCount: sql<number>`cast(coalesce(sum(case when ${decisionsTable.outcome} = 'approved' then 1 else 0 end), 0) as int)`,
@@ -87,6 +91,7 @@ router.get("/analytics/summary", async (req, res): Promise<void> => {
 // ─── Decision Volume ──────────────────────────────────────────────────────────
 
 router.get("/analytics/decision-volume", async (req, res): Promise<void> => {
+  const orgId = req.user!.organizationId;
   const result = await db.execute(sql`
     SELECT
       to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
@@ -94,6 +99,7 @@ router.get("/analytics/decision-volume", async (req, res): Promise<void> => {
       CAST(COUNT(*) AS INT) AS cnt
     FROM decisions
     WHERE created_at >= now() - INTERVAL '30 days'
+      AND organization_id = ${orgId}
     GROUP BY date_trunc('day', created_at AT TIME ZONE 'UTC'), outcome
     ORDER BY date_trunc('day', created_at AT TIME ZONE 'UTC')
   `);
@@ -123,6 +129,7 @@ router.get("/analytics/decision-volume", async (req, res): Promise<void> => {
 // ─── Top Rules ────────────────────────────────────────────────────────────────
 
 router.get("/analytics/top-rules", async (req, res): Promise<void> => {
+  const orgId = req.user!.organizationId;
   const result = await db.execute(sql`
     SELECT
       CAST(elem->>'ruleId' AS INT) AS rule_id,
@@ -136,6 +143,7 @@ router.get("/analytics/top-rules", async (req, res): Promise<void> => {
     FROM decisions d
     CROSS JOIN LATERAL jsonb_array_elements(d.rules_applied_json) AS elem
     WHERE d.created_at >= now() - INTERVAL '30 days'
+      AND d.organization_id = ${orgId}
       AND jsonb_typeof(d.rules_applied_json) = 'array'
     GROUP BY CAST(elem->>'ruleId' AS INT), elem->>'ruleName'
     ORDER BY fire_count DESC, eval_count DESC
@@ -175,6 +183,7 @@ router.get("/analytics/top-rules", async (req, res): Promise<void> => {
 // ─── Coverage Gaps ────────────────────────────────────────────────────────────
 
 router.get("/analytics/coverage-gaps", async (req, res): Promise<void> => {
+  const orgId = req.user!.organizationId;
   const policyRuleCounts = await db
     .select({
       policyId: policiesTable.id,
@@ -185,7 +194,7 @@ router.get("/analytics/coverage-gaps", async (req, res): Promise<void> => {
     .from(policiesTable)
     .leftJoin(organizationsTable, eq(policiesTable.organizationId, organizationsTable.id))
     .leftJoin(rulesTable, eq(rulesTable.policyId, policiesTable.id))
-    .where(eq(policiesTable.status, "published"))
+    .where(and(eq(policiesTable.status, "published"), eq(policiesTable.organizationId, orgId)))
     .groupBy(policiesTable.id, policiesTable.name, organizationsTable.name);
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -195,7 +204,11 @@ router.get("/analytics/coverage-gaps", async (req, res): Promise<void> => {
       count: sql<number>`cast(count(*) as int)`,
     })
     .from(decisionsTable)
-    .where(and(eq(decisionsTable.outcome, "needs_review"), gte(decisionsTable.createdAt, sevenDaysAgo)))
+    .where(and(
+      eq(decisionsTable.outcome, "needs_review"),
+      gte(decisionsTable.createdAt, sevenDaysAgo),
+      eq(decisionsTable.organizationId, orgId),
+    ))
     .groupBy(decisionsTable.policyId);
 
   const needsReviewMap: Record<number, number> = {};
@@ -226,6 +239,7 @@ router.get("/analytics/coverage-gaps", async (req, res): Promise<void> => {
 // ─── Rule Health ──────────────────────────────────────────────────────────────
 
 router.get("/analytics/rule-health", async (req, res): Promise<void> => {
+  const orgId = req.user!.organizationId;
   const result = await db.execute(sql`
     SELECT
       r.id AS rule_id,
@@ -254,7 +268,7 @@ router.get("/analytics/rule-health", async (req, res): Promise<void> => {
       CAST((SELECT COUNT(*) FROM rule_versions rv WHERE rv.rule_id = r.id) AS INT) AS human_overrides
     FROM rules r
     LEFT JOIN policies p ON r.policy_id = p.id
-    WHERE r.status = 'published'
+    WHERE r.status = 'published' AND p.organization_id = ${orgId}
     ORDER BY (
       COALESCE((SELECT COUNT(*) FROM jsonb_array_elements(r.resolved_ambiguities) ea WHERE (ea->>'resolved')::boolean = false), 0) +
       COALESCE((SELECT COUNT(*) FROM jsonb_array_elements(r.resolved_edge_cases) ee WHERE (ee->>'resolved')::boolean = false), 0) * 2 +
@@ -297,7 +311,8 @@ router.get("/analytics/recent-activity", async (req, res): Promise<void> => {
   const query = GetRecentActivityQueryParams.safeParse(req.query);
   if (!query.success) { send400(res, req, query.error); return; }
   const limit = query.data.limit ?? 20;
-  const orgId = query.data.organizationId;
+  // Force-scope to caller's org regardless of any query param.
+  const orgId = req.user!.organizationId;
 
   const ruleRows = await db
     .select({
@@ -313,7 +328,7 @@ router.get("/analytics/recent-activity", async (req, res): Promise<void> => {
     .from(rulesTable)
     .leftJoin(policiesTable, eq(rulesTable.policyId, policiesTable.id))
     .leftJoin(organizationsTable, eq(policiesTable.organizationId, organizationsTable.id))
-    .where(orgId != null ? eq(policiesTable.organizationId, orgId) : undefined)
+    .where(eq(policiesTable.organizationId, orgId))
     .orderBy(desc(rulesTable.updatedAt))
     .limit(limit);
 
@@ -328,7 +343,7 @@ router.get("/analytics/recent-activity", async (req, res): Promise<void> => {
     })
     .from(policiesTable)
     .leftJoin(organizationsTable, eq(policiesTable.organizationId, organizationsTable.id))
-    .where(orgId != null ? eq(policiesTable.organizationId, orgId) : undefined)
+    .where(eq(policiesTable.organizationId, orgId))
     .orderBy(desc(policiesTable.updatedAt))
     .limit(limit);
 
@@ -366,8 +381,9 @@ router.get("/analytics/recent-activity", async (req, res): Promise<void> => {
 router.get("/analytics/policy-breakdown", async (req, res): Promise<void> => {
   const query = GetPolicyBreakdownQueryParams.safeParse(req.query);
   if (!query.success) { send400(res, req, query.error); return; }
-  const orgId = query.data.organizationId;
-  const conditions = orgId != null ? [eq(policiesTable.organizationId, orgId)] : [];
+  void query;
+  const orgId = req.user!.organizationId;
+  const conditions = [eq(policiesTable.organizationId, orgId)];
 
   const [totals] = await db
     .select({

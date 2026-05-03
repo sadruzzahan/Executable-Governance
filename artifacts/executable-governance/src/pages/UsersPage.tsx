@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import type { User } from "@workspace/api-client-react";
 import { AppLayout, PageHeader } from "@/components/AppLayout";
+import { useCan } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,9 @@ type Role = "reader" | "editor" | "approver" | "admin";
 
 export function UsersPage() {
   const queryClient = useQueryClient();
+  const canInvite = useCan("user.invite");
+  const canUpdate = useCan("user.update");
+  const canDelete = useCan("user.delete");
   const { data: users } = useListUsers();
   const { data: orgs } = useListOrganizations();
   const [open, setOpen] = useState(false);
@@ -62,9 +66,15 @@ export function UsersPage() {
         title="Users"
         description="People who can author, approve, or read governance rules."
         actions={
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
+          <Dialog open={open && canInvite} onOpenChange={(v) => { if (!canInvite) return; setOpen(v); if (!v) reset(); }}>
             <DialogTrigger asChild>
-              <Button data-testid="button-new-user"><Plus className="w-4 h-4 mr-1" /> New User</Button>
+              <Button
+                data-testid="button-new-user"
+                disabled={!canInvite}
+                title={canInvite ? "Add a new user" : "Only admins can invite users"}
+              >
+                <Plus className="w-4 h-4 mr-1" /> New User
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Add User</DialogTitle></DialogHeader>
@@ -124,8 +134,22 @@ export function UsersPage() {
                   <td className="px-5 py-3 text-muted-foreground">{orgName(u.organizationId)}</td>
                   <td className="px-5 py-3"><Badge variant="outline" className={`text-[10px] uppercase tracking-wider ${roleColors[u.role] ?? ""}`}>{u.role}</Badge></td>
                   <td className="px-5 py-3 text-right">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(u)} data-testid={`button-edit-user-${u.id}`}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => del.mutate({ id: u.id })} data-testid={`button-delete-user-${u.id}`}><Trash2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEdit(u)}
+                      disabled={!canUpdate}
+                      title={canUpdate ? "Edit user" : "Only admins can edit users"}
+                      data-testid={`button-edit-user-${u.id}`}
+                    ><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => del.mutate({ id: u.id })}
+                      disabled={!canDelete}
+                      title={canDelete ? "Remove user" : "Only admins can remove users"}
+                      data-testid={`button-delete-user-${u.id}`}
+                    ><Trash2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
                   </td>
                 </tr>
               ))}

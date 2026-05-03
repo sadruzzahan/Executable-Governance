@@ -23,6 +23,7 @@ import {
   mfaSecretsTable,
   mfaRecoveryCodesTable,
   userSessionsTable,
+  capabilitiesFor,
 } from "@workspace/db";
 import { send400 } from "../lib/validation";
 import { hashPassword, verifyPassword, strengthScore } from "../lib/passwords";
@@ -153,6 +154,7 @@ router.get("/auth/me", requireAuth, async (req, res) => {
     user: publicUser(req.user!),
     mfaEnabled: !!(mfa && mfa.enabledAt),
     sessionId: req.session!.id,
+    capabilities: capabilitiesFor(req.user!.role),
   });
 });
 

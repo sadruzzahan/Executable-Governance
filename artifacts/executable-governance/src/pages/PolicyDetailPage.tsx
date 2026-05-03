@@ -11,6 +11,7 @@ import {
   useDeletePolicy,
 } from "@workspace/api-client-react";
 import { AppLayout, PageHeader } from "@/components/AppLayout";
+import { Can } from "@/lib/auth";
 import { StatusBadge, OutcomeBadge } from "@/components/StatusBadge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,32 +74,42 @@ export function PolicyDetailPage() {
         description={policy.description ?? undefined}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setEditOpen(true)} data-testid="button-edit-policy">
-              <Pencil className="w-4 h-4 mr-1" /> Edit
-            </Button>
-            <Link href={`/rules/new?policyId=${policy.id}`}>
-              <Button variant="outline" data-testid="button-add-rule">
-                <Plus className="w-4 h-4 mr-1" /> Add Rule
+            <Can action="policy.update">
+              <Button variant="outline" onClick={() => setEditOpen(true)} data-testid="button-edit-policy">
+                <Pencil className="w-4 h-4 mr-1" /> Edit
               </Button>
-            </Link>
+            </Can>
+            <Can action="rule.create">
+              <Link href={`/rules/new?policyId=${policy.id}`}>
+                <Button variant="outline" data-testid="button-add-rule">
+                  <Plus className="w-4 h-4 mr-1" /> Add Rule
+                </Button>
+              </Link>
+            </Can>
             {policy.status !== "published" && (
-              <Button onClick={() => publish.mutate({ id })} data-testid="button-publish-policy">
-                <Send className="w-4 h-4 mr-1" /> Publish
-              </Button>
+              <Can action="policy.publish">
+                <Button onClick={() => publish.mutate({ id })} data-testid="button-publish-policy">
+                  <Send className="w-4 h-4 mr-1" /> Publish
+                </Button>
+              </Can>
             )}
             {policy.status !== "archived" && (
-              <Button variant="outline" onClick={() => archive.mutate({ id })} data-testid="button-archive-policy">
-                <Archive className="w-4 h-4 mr-1" /> Archive
-              </Button>
+              <Can action="policy.archive">
+                <Button variant="outline" onClick={() => archive.mutate({ id })} data-testid="button-archive-policy">
+                  <Archive className="w-4 h-4 mr-1" /> Archive
+                </Button>
+              </Can>
             )}
-            <Button
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={() => del.mutate({ id })}
-              data-testid="button-delete-policy"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <Can action="policy.delete">
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => del.mutate({ id })}
+                data-testid="button-delete-policy"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </Can>
           </div>
         }
       />

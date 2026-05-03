@@ -12,6 +12,7 @@ import {
   getListRulesQueryKey,
 } from "@workspace/api-client-react";
 import { AppLayout, PageHeader } from "@/components/AppLayout";
+import { Can } from "@/lib/auth";
 import { StatusBadge, OutcomeBadge } from "@/components/StatusBadge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -165,34 +166,40 @@ export function RuleDetailPage() {
         description={rule.policyName ? `Part of ${rule.policyName}` : undefined}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setEditOpen(true)} data-testid="button-edit-rule">
-              <Pencil className="w-4 h-4 mr-1" /> Edit
-            </Button>
+            <Can action="rule.update">
+              <Button variant="outline" onClick={() => setEditOpen(true)} data-testid="button-edit-rule">
+                <Pencil className="w-4 h-4 mr-1" /> Edit
+              </Button>
+            </Can>
             {rule.status !== "published" && (
-              <div className="flex items-center gap-2">
-                {publishBlocked && (
-                  <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400" data-testid="publish-blocked-notice">
-                    <AlertCircle className="w-3.5 h-3.5" /> {unresolvedCount} unresolved
-                  </div>
-                )}
-                <Button
-                  onClick={() => publish.mutate({ id })}
-                  disabled={publishBlocked}
-                  title={publishBlocked ? `Resolve ${unresolvedCount} flagged item(s) before publishing` : "Publish rule"}
-                  data-testid="button-publish-rule"
-                >
-                  <Send className="w-4 h-4 mr-1" /> Publish
-                </Button>
-              </div>
+              <Can action="rule.publish">
+                <div className="flex items-center gap-2">
+                  {publishBlocked && (
+                    <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400" data-testid="publish-blocked-notice">
+                      <AlertCircle className="w-3.5 h-3.5" /> {unresolvedCount} unresolved
+                    </div>
+                  )}
+                  <Button
+                    onClick={() => publish.mutate({ id })}
+                    disabled={publishBlocked}
+                    title={publishBlocked ? `Resolve ${unresolvedCount} flagged item(s) before publishing` : "Publish rule"}
+                    data-testid="button-publish-rule"
+                  >
+                    <Send className="w-4 h-4 mr-1" /> Publish
+                  </Button>
+                </div>
+              </Can>
             )}
-            <Button
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={() => del.mutate({ id })}
-              data-testid="button-delete-rule"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <Can action="rule.delete">
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => del.mutate({ id })}
+                data-testid="button-delete-rule"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </Can>
           </div>
         }
       />

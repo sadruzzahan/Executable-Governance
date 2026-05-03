@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useListRules } from "@workspace/api-client-react";
 import { AppLayout, PageHeader } from "@/components/AppLayout";
+import { Can } from "@/lib/auth";
 import { StatusBadge, OutcomeBadge } from "@/components/StatusBadge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,9 @@ export function RulesPage() {
         description="All compiled governance rules across every policy."
         actions={
           <Link href="/rules/new">
-            <Button data-testid="button-new-rule"><Plus className="w-4 h-4 mr-1" /> New Rule</Button>
+            <Can action="rule.create">
+              <Button data-testid="button-new-rule"><Plus className="w-4 h-4 mr-1" /> New Rule</Button>
+            </Can>
           </Link>
         }
       />

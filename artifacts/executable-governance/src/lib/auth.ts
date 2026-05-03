@@ -9,6 +9,10 @@
  * customFetch, react-query for cache + invalidation).
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createElement, Fragment, type ReactNode } from "react";
+import type { Action } from "@workspace/db";
+
+export type { Action } from "@workspace/db";
 
 const apiBase = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
 
@@ -28,6 +32,34 @@ export interface MeResponse {
   user: AuthUser;
   mfaEnabled: boolean;
   sessionId: number;
+  capabilities: Action[];
+}
+
+/**
+ * Capability check derived from the server's per-user capability set
+ * (see /auth/me). Returns false until /auth/me has resolved so we never
+ * flash an action the user doesn't have.
+ */
+export function useCan(action: Action): boolean {
+  const me = useMe();
+  return !!me.data?.capabilities?.includes(action);
+}
+
+/**
+ * Render-prop gate: shows children only when the caller can perform
+ * the action, otherwise renders the optional fallback. Server-side
+ * RBAC still enforces — this is purely cosmetic.
+ */
+export function Can({
+  action,
+  children,
+  fallback = null,
+}: {
+  action: Action;
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
+  return createElement(Fragment, null, useCan(action) ? children : fallback);
 }
 
 export class ApiError extends Error {

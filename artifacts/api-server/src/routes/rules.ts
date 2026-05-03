@@ -14,8 +14,13 @@ import {
   GetRuleVersionDiffParams,
   GetRuleVersionDiffQueryParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
+import { requirePermission } from "../middlewares/rbac";
+import { loadOrgScopedRule, loadOrgScopedPolicy } from "../lib/orgScope";
+import { auditWrite } from "../lib/audit";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
 function compileRuleConditions(structuredRepresentation: unknown): Array<{ field: string; operator: string; value: unknown; kind: string }> {
   if (!structuredRepresentation || typeof structuredRepresentation !== "object") return [];
@@ -31,28 +36,54 @@ function compileRuleConditions(structuredRepresentation: unknown): Array<{ field
   return [];
 }
 
-router.get("/rules", async (req, res): Promise<void> => {
+router.get("/rules", requirePermission("rule.read"), async (req, res): Promise<void> => {
   const query = ListRulesQueryParams.safeParse(req.query);
   if (!query.success) {
     send400(res, req, query.error);
     return;
   }
-  const conditions = [];
+  const orgId = req.user!.organizationId;
+  // Force-filter by org via a join on the rule's parent policy.
+  const conditions = [eq(policiesTable.organizationId, orgId)];
   if (query.data.policyId != null) conditions.push(eq(rulesTable.policyId, query.data.policyId));
   if (query.data.status != null) conditions.push(eq(rulesTable.status, query.data.status));
+  if (req.user!.role === "reader") conditions.push(eq(rulesTable.status, "published"));
 
   const rows = await db
-    .select()
+    .select({
+      id: rulesTable.id,
+      policyId: rulesTable.policyId,
+      name: rulesTable.name,
+      naturalLanguageText: rulesTable.naturalLanguageText,
+      structuredRepresentation: rulesTable.structuredRepresentation,
+      outcome: rulesTable.outcome,
+      priority: rulesTable.priority,
+      status: rulesTable.status,
+      version: rulesTable.version,
+      resolvedAmbiguities: rulesTable.resolvedAmbiguities,
+      resolvedEdgeCases: rulesTable.resolvedEdgeCases,
+      compiledConditions: rulesTable.compiledConditions,
+      createdAt: rulesTable.createdAt,
+      updatedAt: rulesTable.updatedAt,
+    })
     .from(rulesTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .innerJoin(policiesTable, eq(rulesTable.policyId, policiesTable.id))
+    .where(and(...conditions))
     .orderBy(rulesTable.priority);
   res.json(rows);
 });
 
-router.post("/rules", async (req, res): Promise<void> => {
+router.post("/rules", requirePermission("rule.create"), async (req, res): Promise<void> => {
   const parsed = CreateRuleBody.safeParse(req.body);
   if (!parsed.success) {
     send400(res, req, parsed.error);
+    return;
+  }
+  // Verify the parent policy belongs to the caller's org before creating
+  // a rule under it (cross-org rule injection vector).
+  const parent = await loadOrgScopedPolicy(parsed.data.policyId, req.user!.organizationId);
+  if (!parent) {
+    res.status(404).json({ error: "Policy not found" });
     return;
   }
   const row = await db.transaction(async (tx) => {
@@ -67,14 +98,31 @@ router.post("/rules", async (req, res): Promise<void> => {
     });
     return created;
   });
+  auditWrite({
+    req,
+    action: "rule.create",
+    resourceType: "rule",
+    resourceId: row.id,
+    result: "success",
+    metadata: { policyId: row.policyId, name: row.name },
+  });
 
   res.status(201).json(row);
 });
 
-router.get("/rules/:id", async (req, res): Promise<void> => {
+router.get("/rules/:id", requirePermission("rule.read"), async (req, res): Promise<void> => {
   const params = GetRuleParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
+    return;
+  }
+  const scoped = await loadOrgScopedRule(params.data.id, req.user!.organizationId);
+  if (!scoped) {
+    res.status(404).json({ error: "Rule not found" });
+    return;
+  }
+  if (req.user!.role === "reader" && scoped.status !== "published") {
+    res.status(404).json({ error: "Rule not found" });
     return;
   }
 
@@ -99,17 +147,12 @@ router.get("/rules/:id", async (req, res): Promise<void> => {
     .leftJoin(policiesTable, eq(rulesTable.policyId, policiesTable.id))
     .where(eq(rulesTable.id, params.data.id));
 
-  if (!row) {
-    res.status(404).json({ error: "Rule not found" });
-    return;
-  }
-
   const versions = await db.select().from(ruleVersionsTable).where(eq(ruleVersionsTable.ruleId, params.data.id)).orderBy(desc(ruleVersionsTable.version));
 
   res.json({ ...row, versions });
 });
 
-router.patch("/rules/:id", async (req, res): Promise<void> => {
+router.patch("/rules/:id", requirePermission("rule.update"), async (req, res): Promise<void> => {
   const params = UpdateRuleParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
@@ -120,12 +163,13 @@ router.patch("/rules/:id", async (req, res): Promise<void> => {
     send400(res, req, parsed.error);
     return;
   }
-
-  const [existing] = await db.select().from(rulesTable).where(eq(rulesTable.id, params.data.id));
-  if (!existing) {
+  const scoped = await loadOrgScopedRule(params.data.id, req.user!.organizationId);
+  if (!scoped) {
     res.status(404).json({ error: "Rule not found" });
     return;
   }
+
+  const [existing] = await db.select().from(rulesTable).where(eq(rulesTable.id, params.data.id));
 
   const updates: Record<string, unknown> = {};
   if (parsed.data.name != null) updates.name = parsed.data.name;
@@ -166,31 +210,52 @@ router.patch("/rules/:id", async (req, res): Promise<void> => {
     }
     return updated;
   });
+  auditWrite({
+    req,
+    action: "rule.update",
+    resourceType: "rule",
+    resourceId: row.id,
+    result: "success",
+    metadata: { fields: Object.keys(updates), materialChange },
+  });
 
   res.json(row);
 });
 
-router.delete("/rules/:id", async (req, res): Promise<void> => {
+router.delete("/rules/:id", requirePermission("rule.delete"), async (req, res): Promise<void> => {
   const params = DeleteRuleParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
     return;
   }
+  const scoped = await loadOrgScopedRule(params.data.id, req.user!.organizationId);
+  if (!scoped) {
+    res.status(404).json({ error: "Rule not found" });
+    return;
+  }
   await db.delete(rulesTable).where(eq(rulesTable.id, params.data.id));
+  auditWrite({
+    req,
+    action: "rule.delete",
+    resourceType: "rule",
+    resourceId: params.data.id,
+    result: "success",
+  });
   res.sendStatus(204);
 });
 
-router.post("/rules/:id/publish", async (req, res): Promise<void> => {
+router.post("/rules/:id/publish", requirePermission("rule.publish"), async (req, res): Promise<void> => {
   const params = PublishRuleParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
     return;
   }
-  const [existing] = await db.select().from(rulesTable).where(eq(rulesTable.id, params.data.id));
-  if (!existing) {
+  const scoped = await loadOrgScopedRule(params.data.id, req.user!.organizationId);
+  if (!scoped) {
     res.status(404).json({ error: "Rule not found" });
     return;
   }
+  const [existing] = await db.select().from(rulesTable).where(eq(rulesTable.id, params.data.id));
   const ambiguities = Array.isArray(existing.resolvedAmbiguities) ? existing.resolvedAmbiguities as Array<{ resolved?: boolean }> : [];
   const edgeCases = Array.isArray(existing.resolvedEdgeCases) ? existing.resolvedEdgeCases as Array<{ resolved?: boolean }> : [];
   const unresolvedCount = ambiguities.filter((a) => !a.resolved).length + edgeCases.filter((e) => !e.resolved).length;
@@ -198,31 +263,38 @@ router.post("/rules/:id/publish", async (req, res): Promise<void> => {
     res.status(422).json({ error: `Cannot publish: ${unresolvedCount} unresolved analysis item(s). Resolve or override all flagged items first.` });
     return;
   }
-  // Compile structured conditions on publish for fast engine evaluation
   const compiledConditions = compileRuleConditions(existing.structuredRepresentation);
   const [row] = await db
     .update(rulesTable)
     .set({ status: "published", compiledConditions: compiledConditions.length > 0 ? compiledConditions : null })
     .where(eq(rulesTable.id, params.data.id))
     .returning();
-  if (!row) {
-    res.status(404).json({ error: "Rule not found" });
-    return;
-  }
+  auditWrite({
+    req,
+    action: "rule.publish",
+    resourceType: "rule",
+    resourceId: row.id,
+    result: "success",
+  });
   res.json(row);
 });
 
-router.get("/rules/:id/versions", async (req, res): Promise<void> => {
+router.get("/rules/:id/versions", requirePermission("rule.read"), async (req, res): Promise<void> => {
   const params = GetRuleVersionsParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
+    return;
+  }
+  const scoped = await loadOrgScopedRule(params.data.id, req.user!.organizationId);
+  if (!scoped) {
+    res.status(404).json({ error: "Rule not found" });
     return;
   }
   const rows = await db.select().from(ruleVersionsTable).where(eq(ruleVersionsTable.ruleId, params.data.id)).orderBy(desc(ruleVersionsTable.version));
   res.json(rows);
 });
 
-router.get("/rules/:id/diff", async (req, res): Promise<void> => {
+router.get("/rules/:id/diff", requirePermission("rule.read"), async (req, res): Promise<void> => {
   const params = GetRuleVersionDiffParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
@@ -231,6 +303,11 @@ router.get("/rules/:id/diff", async (req, res): Promise<void> => {
   const query = GetRuleVersionDiffQueryParams.safeParse(req.query);
   if (!query.success) {
     send400(res, req, query.error);
+    return;
+  }
+  const scoped = await loadOrgScopedRule(params.data.id, req.user!.organizationId);
+  if (!scoped) {
+    res.status(404).json({ error: "Rule not found" });
     return;
   }
   const versions = await db

@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import type { Organization } from "@workspace/api-client-react";
 import { AppLayout, PageHeader } from "@/components/AppLayout";
+import { useCan } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,9 @@ import { Plus, Trash2, Pencil, Building2 } from "lucide-react";
 export function OrganizationsPage() {
   const queryClient = useQueryClient();
   const { data: orgs } = useListOrganizations();
+  const canCreate = useCan("organization.create");
+  const canUpdate = useCan("organization.update");
+  const canDelete = useCan("organization.delete");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Organization | null>(null);
   const [name, setName] = useState("");
@@ -50,8 +54,14 @@ export function OrganizationsPage() {
         title="Organizations"
         description="Tenants in the governance platform. Each has its own policies, rules, and users."
         actions={
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
-            <DialogTrigger asChild><Button data-testid="button-new-organization"><Plus className="w-4 h-4 mr-1" /> New Organization</Button></DialogTrigger>
+          <Dialog open={open && canCreate} onOpenChange={(v) => { if (!canCreate) return; setOpen(v); if (!v) reset(); }}>
+            <DialogTrigger asChild>
+              <Button
+                data-testid="button-new-organization"
+                disabled={!canCreate}
+                title={canCreate ? "Add organization" : "Organization creation is restricted"}
+              ><Plus className="w-4 h-4 mr-1" /> New Organization</Button>
+            </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Add Organization</DialogTitle></DialogHeader>
               <div className="space-y-4 py-2">
@@ -81,8 +91,22 @@ export function OrganizationsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(o)} data-testid={`button-edit-organization-${o.id}`}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
-                  <Button variant="ghost" size="sm" onClick={() => del.mutate({ id: o.id })} data-testid={`button-delete-organization-${o.id}`}><Trash2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEdit(o)}
+                    disabled={!canUpdate}
+                    title={canUpdate ? "Edit organization" : "You can't edit organizations"}
+                    data-testid={`button-edit-organization-${o.id}`}
+                  ><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => del.mutate({ id: o.id })}
+                    disabled={!canDelete}
+                    title={canDelete ? "Delete organization" : "Organization deletion is restricted"}
+                    data-testid={`button-delete-organization-${o.id}`}
+                  ><Trash2 className="w-3.5 h-3.5 text-muted-foreground" /></Button>
                 </div>
               </div>
               {o.description && <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{o.description}</p>}

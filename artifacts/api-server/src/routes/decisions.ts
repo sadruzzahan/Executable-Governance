@@ -8,8 +8,13 @@ import {
   ListDecisionsQueryParams,
   GetDecisionParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
+import { requirePermission } from "../middlewares/rbac";
+import { loadOrgScopedPolicy, loadOrgScopedDecision } from "../lib/orgScope";
+import { auditWrite } from "../lib/audit";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
 interface CompiledCondition {
   field: string;
@@ -180,23 +185,16 @@ Write a clear, specific explanation referencing the exact values and rule names.
   }
 }
 
-router.post("/decisions/evaluate", async (req, res): Promise<void> => {
+router.post("/decisions/evaluate", requirePermission("decision.evaluate"), async (req, res): Promise<void> => {
   const body = EvaluateDecisionParams.safeParse(req.body);
   if (!body.success) { send400(res, req, body.error); return; }
 
   const { policyId, actor, action, context, scenario } = body.data;
   const evalContext: Record<string, unknown> = { actor, action, ...(context ?? {}) };
 
-  const [policy] = await db
-    .select({
-      id: policiesTable.id,
-      organizationId: policiesTable.organizationId,
-      name: policiesTable.name,
-      status: policiesTable.status,
-    })
-    .from(policiesTable)
-    .where(eq(policiesTable.id, policyId));
-
+  // Cross-org: policy must belong to the caller's org. 404 (not 403) so
+  // a member of org A can't probe whether org B has policy id N.
+  const policy = await loadOrgScopedPolicy(policyId, req.user!.organizationId);
   if (!policy) { res.status(404).json({ error: "Policy not found" }); return; }
 
   if (policy.status !== "published") {
@@ -260,6 +258,15 @@ router.post("/decisions/evaluate", async (req, res): Promise<void> => {
     scenario: scenario ?? null,
   }).returning();
 
+  auditWrite({
+    req,
+    action: "decision.evaluate",
+    resourceType: "decision",
+    resourceId: saved.id,
+    result: "success",
+    metadata: { policyId, outcome, confidence },
+  });
+
   res.json({
     id: saved.id,
     decision: outcome,
@@ -279,7 +286,7 @@ router.post("/decisions/evaluate", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/decisions", async (req, res): Promise<void> => {
+router.get("/decisions", requirePermission("decision.read"), async (req, res): Promise<void> => {
   const query = ListDecisionsQueryParams.safeParse(req.query);
   if (!query.success) { send400(res, req, query.error); return; }
 
@@ -288,14 +295,15 @@ router.get("/decisions", async (req, res): Promise<void> => {
   const pageSize = limit ?? 25;
   const offset = (pageNum - 1) * pageSize;
 
-  const conditions = [];
+  // Force-scope to caller's org.
+  const conditions = [eq(decisionsTable.organizationId, req.user!.organizationId)];
   if (policyId != null) conditions.push(eq(decisionsTable.policyId, policyId));
   if (outcome != null) conditions.push(eq(decisionsTable.outcome, outcome as "approved" | "denied" | "escalated" | "needs_review"));
   if (actor != null) conditions.push(eq(decisionsTable.actor, actor));
   if (dateFrom != null) conditions.push(gte(decisionsTable.createdAt, new Date(dateFrom)));
   if (dateTo != null) conditions.push(lte(decisionsTable.createdAt, new Date(dateTo)));
 
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
 
   const [rows, countResult] = await Promise.all([
     db
@@ -334,9 +342,12 @@ router.get("/decisions", async (req, res): Promise<void> => {
   });
 });
 
-router.get("/decisions/:id", async (req, res): Promise<void> => {
+router.get("/decisions/:id", requirePermission("decision.read"), async (req, res): Promise<void> => {
   const params = GetDecisionParams.safeParse(req.params);
   if (!params.success) { send400(res, req, params.error); return; }
+
+  const scoped = await loadOrgScopedDecision(params.data.id, req.user!.organizationId);
+  if (!scoped) { res.status(404).json({ error: "Decision not found" }); return; }
 
   const [row] = await db
     .select({
@@ -360,7 +371,6 @@ router.get("/decisions/:id", async (req, res): Promise<void> => {
     .leftJoin(organizationsTable, eq(decisionsTable.organizationId, organizationsTable.id))
     .where(eq(decisionsTable.id, params.data.id));
 
-  if (!row) { res.status(404).json({ error: "Decision not found" }); return; }
   res.json(row);
 });
 

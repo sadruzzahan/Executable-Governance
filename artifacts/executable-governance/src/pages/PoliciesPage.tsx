@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useListPolicies } from "@workspace/api-client-react";
 import { AppLayout, PageHeader } from "@/components/AppLayout";
+import { Can } from "@/lib/auth";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,11 +20,13 @@ export function PoliciesPage() {
         title="Policies"
         description="All governance policies across your organizations."
         actions={
-          <Link href="/policies/new">
-            <Button data-testid="button-new-policy">
-              <Plus className="w-4 h-4 mr-1" /> New Policy
-            </Button>
-          </Link>
+          <Can action="policy.create">
+            <Link href="/policies/new">
+              <Button data-testid="button-new-policy">
+                <Plus className="w-4 h-4 mr-1" /> New Policy
+              </Button>
+            </Link>
+          </Can>
         }
       />
       <div className="p-8 space-y-4">

@@ -10,38 +10,59 @@ import {
   DeleteUserParams,
   ListUsersQueryParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
+import { requirePermission } from "../middlewares/rbac";
+import { loadOrgScopedUser } from "../lib/orgScope";
+import { auditWrite } from "../lib/audit";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
-router.get("/users", async (req, res): Promise<void> => {
+router.get("/users", requirePermission("user.read"), async (req, res): Promise<void> => {
   const query = ListUsersQueryParams.safeParse(req.query);
   if (!query.success) {
     send400(res, req, query.error);
     return;
   }
-  const rows = query.data.organizationId != null
-    ? await db.select().from(usersTable).where(eq(usersTable.organizationId, query.data.organizationId)).orderBy(usersTable.id)
-    : await db.select().from(usersTable).orderBy(usersTable.id);
+  void query;
+  // Force-scope to caller's org regardless of any organizationId filter.
+  const rows = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.organizationId, req.user!.organizationId))
+    .orderBy(usersTable.id);
   res.json(rows);
 });
 
-router.post("/users", async (req, res): Promise<void> => {
+router.post("/users", requirePermission("user.invite"), async (req, res): Promise<void> => {
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) {
     send400(res, req, parsed.error);
     return;
   }
-  const [row] = await db.insert(usersTable).values(parsed.data).returning();
+  // Force the new user into the caller's org.
+  const [row] = await db
+    .insert(usersTable)
+    .values({ ...parsed.data, organizationId: req.user!.organizationId })
+    .returning();
+  auditWrite({
+    req,
+    action: "user.invite",
+    resourceType: "user",
+    resourceId: row.id,
+    result: "success",
+    metadata: { email: row.email, role: row.role },
+  });
   res.status(201).json(row);
 });
 
-router.get("/users/:id", async (req, res): Promise<void> => {
+router.get("/users/:id", requirePermission("user.read"), async (req, res): Promise<void> => {
   const params = GetUserParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
     return;
   }
-  const [row] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
+  const row = await loadOrgScopedUser(params.data.id, req.user!.organizationId);
   if (!row) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -49,7 +70,7 @@ router.get("/users/:id", async (req, res): Promise<void> => {
   res.json(row);
 });
 
-router.patch("/users/:id", async (req, res): Promise<void> => {
+router.patch("/users/:id", requirePermission("user.update"), async (req, res): Promise<void> => {
   const params = UpdateUserParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
@@ -58,6 +79,11 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
   const parsed = UpdateUserBody.safeParse(req.body);
   if (!parsed.success) {
     send400(res, req, parsed.error);
+    return;
+  }
+  const target = await loadOrgScopedUser(params.data.id, req.user!.organizationId);
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
     return;
   }
   const updates: Record<string, unknown> = {};
@@ -71,20 +97,45 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
   }
 
   const [row] = await db.update(usersTable).set(updates).where(eq(usersTable.id, params.data.id)).returning();
-  if (!row) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
+  auditWrite({
+    req,
+    action: "user.update",
+    resourceType: "user",
+    resourceId: row.id,
+    result: "success",
+    metadata: { fields: Object.keys(updates) },
+  });
   res.json(row);
 });
 
-router.delete("/users/:id", async (req, res): Promise<void> => {
+router.delete("/users/:id", requirePermission("user.delete"), async (req, res): Promise<void> => {
   const params = DeleteUserParams.safeParse(req.params);
   if (!params.success) {
     send400(res, req, params.error);
     return;
   }
+  const target = await loadOrgScopedUser(params.data.id, req.user!.organizationId);
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  // Prevent admins from deleting themselves out of their own org.
+  if (target.id === req.user!.id) {
+    res.status(409).json({
+      error: "self_delete_forbidden",
+      message: "Use account deletion in Settings → Danger to remove your own account.",
+      requestId: req.requestId,
+    });
+    return;
+  }
   await db.delete(usersTable).where(eq(usersTable.id, params.data.id));
+  auditWrite({
+    req,
+    action: "user.delete",
+    resourceType: "user",
+    resourceId: params.data.id,
+    result: "success",
+  });
   res.sendStatus(204);
 });
 
