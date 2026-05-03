@@ -81,7 +81,7 @@ export async function initErrorTracking(release?: string): Promise<void> {
     mod.init({
       dsn: env.SENTRY_DSN,
       environment: env.NODE_ENV,
-      release: release ?? process.env.RELEASE,
+      release: release ?? env.RELEASE ?? undefined,
       tracesSampleRate: 0,
     });
     sentry = mod;

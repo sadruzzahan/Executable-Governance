@@ -1,6 +1,8 @@
 import pino from "pino";
+import { getEnv } from "./env";
 
-const isProduction = process.env.NODE_ENV === "production";
+const env = getEnv();
+const isProduction = env.NODE_ENV === "production";
 
 /**
  * Structured JSON logger.
@@ -11,10 +13,11 @@ const isProduction = process.env.NODE_ENV === "production";
  * sensitive field is introduced.
  */
 export const logger = pino({
-  level: process.env.LOG_LEVEL ?? "info",
+  level: env.LOG_LEVEL,
   base: {
     service: "api-server",
-    env: process.env.NODE_ENV ?? "development",
+    env: env.NODE_ENV,
+    release: env.RELEASE ?? undefined,
   },
   redact: {
     paths: [

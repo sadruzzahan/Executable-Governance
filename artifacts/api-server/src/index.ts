@@ -2,7 +2,7 @@
 // before importing anything that touches the database, OpenAI client,
 // or HTTP server. Side-effect import keeps the validate-then-load order
 // explicit and intentional.
-import { validateEnv } from "./lib/env";
+import { validateEnv, getEnv } from "./lib/env";
 const env = validateEnv();
 
 import app from "./app";
@@ -11,7 +11,7 @@ import { initErrorTracking, captureException } from "./lib/errorTracking";
 
 // Fire-and-forget: error tracking init does not block the listen() call.
 // Until init resolves, captureException() falls back to structured logging.
-void initErrorTracking(process.env.RELEASE);
+void initErrorTracking(getEnv().RELEASE ?? undefined);
 
 // Top-level safety net: never let an unhandled rejection or uncaught
 // exception terminate the process silently. Log + capture so the

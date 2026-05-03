@@ -1,10 +1,15 @@
 /**
  * Boot-time environment validation.
  *
- * Every required env var is read here exactly once. Missing/invalid values
- * fail fast at startup with a clear error — never silently fall back to a
- * default. Optional vars expose typed accessors with explicit defaults
- * documented in this file.
+ * Every env var the application reads is declared here exactly once.
+ * Required values fail fast at startup with a clear error — never
+ * silently fall back to a default. Optional values are surfaced as typed
+ * accessors with explicit defaults documented inline.
+ *
+ * Application code MUST read configuration through `getEnv()` and never
+ * touch `process.env` directly. This keeps secret access auditable and
+ * makes it trivial to swap the source of truth (a secret manager,
+ * Doppler, etc.) by editing one file.
  */
 
 interface EnvSpec {
@@ -77,12 +82,23 @@ const SPECS: EnvSpec[] = [
   {
     name: "SENTRY_DSN",
     required: false,
-    description: "If set, errors are forwarded to Sentry-equivalent sink.",
+    description: "If set, errors are forwarded to Sentry.",
+  },
+  {
+    name: "RELEASE",
+    required: false,
+    description: "Build/release identifier surfaced to error tracker.",
   },
   {
     name: "LOG_LEVEL",
     required: false,
     description: "pino log level. Default 'info'.",
+  },
+  {
+    name: "REPLIT_DEV_DOMAIN",
+    required: false,
+    description:
+      "Replit-provided dev preview domain. Auto-allowed in CORS allow-list when running in dev.",
   },
 ];
 
@@ -95,7 +111,9 @@ export interface ValidatedEnv {
   CORS_ALLOWED_ORIGINS: string[];
   RATE_LIMIT_DISABLED: boolean;
   SENTRY_DSN: string | null;
+  RELEASE: string | null;
   LOG_LEVEL: string;
+  REPLIT_DEV_DOMAIN: string | null;
 }
 
 let cached: ValidatedEnv | null = null;
@@ -145,10 +163,11 @@ export function validateEnv(): ValidatedEnv {
     ? corsRaw.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
 
+  const replitDev = (values.REPLIT_DEV_DOMAIN as string | undefined) ?? null;
+
   // In dev, automatically allow the Replit preview domain unless explicitly overridden.
-  if (corsList.length === 0 && nodeEnv !== "production") {
-    const dev = process.env.REPLIT_DEV_DOMAIN;
-    if (dev) corsList.push(`https://${dev}`);
+  if (corsList.length === 0 && nodeEnv !== "production" && replitDev) {
+    corsList.push(`https://${replitDev}`);
   }
 
   cached = {
@@ -160,7 +179,9 @@ export function validateEnv(): ValidatedEnv {
     CORS_ALLOWED_ORIGINS: corsList,
     RATE_LIMIT_DISABLED: values.RATE_LIMIT_DISABLED === "1",
     SENTRY_DSN: (values.SENTRY_DSN as string | undefined) ?? null,
+    RELEASE: (values.RELEASE as string | undefined) ?? null,
     LOG_LEVEL: (values.LOG_LEVEL as string | undefined) ?? "info",
+    REPLIT_DEV_DOMAIN: replitDev,
   };
   return cached;
 }
