@@ -171,6 +171,18 @@ router.post("/rules/:id/publish", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const [existing] = await db.select().from(rulesTable).where(eq(rulesTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Rule not found" });
+    return;
+  }
+  const ambiguities = Array.isArray(existing.resolvedAmbiguities) ? existing.resolvedAmbiguities as Array<{ resolved?: boolean }> : [];
+  const edgeCases = Array.isArray(existing.resolvedEdgeCases) ? existing.resolvedEdgeCases as Array<{ resolved?: boolean }> : [];
+  const unresolvedCount = ambiguities.filter((a) => !a.resolved).length + edgeCases.filter((e) => !e.resolved).length;
+  if (unresolvedCount > 0) {
+    res.status(422).json({ error: `Cannot publish: ${unresolvedCount} unresolved analysis item(s). Resolve or override all flagged items first.` });
+    return;
+  }
   const [row] = await db.update(rulesTable).set({ status: "published" }).where(eq(rulesTable.id, params.data.id)).returning();
   if (!row) {
     res.status(404).json({ error: "Rule not found" });
