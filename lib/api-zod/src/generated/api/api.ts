@@ -536,6 +536,10 @@ export const SimulateRuleBody = zod.object({
   scenario: zod
     .string()
     .describe("Plain-language scenario description to simulate"),
+  ruleText: zod
+    .string()
+    .optional()
+    .describe("Override rule text to simulate against (e.g. unsaved draft). Defaults to the saved rule text."),
 });
 
 /**

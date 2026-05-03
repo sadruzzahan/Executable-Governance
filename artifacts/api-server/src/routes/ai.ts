@@ -190,9 +190,31 @@ ${siblingContext}`;
       return;
     }
 
+    // Validate/normalise AI-returned conflict objects so the UI can safely call `.severity.toUpperCase()` etc.
+    const VALID_SEVERITIES = new Set(["low", "medium", "high", "critical"]);
+    interface ConflictItem {
+      id: string;
+      severity: "low" | "medium" | "high" | "critical";
+      description: string;
+      conflictingRuleId?: number;
+      conflictingRuleName?: string;
+    }
+    const normalizeConflict = (raw: unknown, idx: number): ConflictItem => {
+      const c = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
+      return {
+        id: typeof c.id === "string" ? c.id : `ai-conflict-${idx}`,
+        severity: typeof c.severity === "string" && VALID_SEVERITIES.has(c.severity)
+          ? (c.severity as ConflictItem["severity"])
+          : "medium",
+        description: typeof c.description === "string" ? c.description : "Conflict detected by AI",
+        conflictingRuleId: typeof c.conflictingRuleId === "number" ? c.conflictingRuleId : undefined,
+        conflictingRuleName: typeof c.conflictingRuleName === "string" ? c.conflictingRuleName : undefined,
+      };
+    };
+
     const mergedConflicts = [
       ...serverConflicts,
-      ...(aiAnalysis.conflicts ?? []),
+      ...aiAnalysis.conflicts.map(normalizeConflict),
     ];
 
     const finalAnalysis = {
@@ -225,10 +247,13 @@ router.post("/rules/:id/simulate", async (req, res): Promise<void> => {
 
   if (!rule) { res.status(404).json({ error: "Rule not found" }); return; }
 
+  // Use caller-supplied ruleText (e.g. unsaved draft) when provided, else fall back to DB value
+  const effectiveRuleText = body.data.ruleText ?? rule.naturalLanguageText;
+
   const systemPrompt = `You are a compliance policy decision engine. Given a governance rule and a scenario, determine exactly how the rule would decide that scenario.
 
 Rule name: ${rule.name}
-Rule text: ${rule.naturalLanguageText}
+Rule text: ${effectiveRuleText}
 Default outcome: ${rule.outcome}
 Structured conditions: ${JSON.stringify(rule.structuredRepresentation)}
 
