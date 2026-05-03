@@ -194,6 +194,85 @@ export interface RuleVersionDiff {
   changes: RuleVersionDiffChangesItem[];
 }
 
+export interface AnalyzeRuleBody {
+  /** The rule text to analyze */
+  naturalLanguageText: string;
+}
+
+export interface SimulateRuleBody {
+  /** Plain-language scenario description to simulate */
+  scenario: string;
+}
+
+export interface AmbiguityItem {
+  id: string;
+  /** The open question the rule leaves unresolved */
+  question: string;
+  /** AI-suggested resolution */
+  suggestedResolution: string;
+  /**
+   * Which structured field this resolution maps to
+   * @nullable
+   */
+  field?: string | null;
+  resolved: boolean;
+}
+
+export interface EdgeCaseItem {
+  id: string;
+  /** A scenario the rule doesn't explicitly handle */
+  scenario: string;
+  /** AI-suggested default behavior */
+  suggestedBehavior: string;
+  /** @nullable */
+  field?: string | null;
+  resolved: boolean;
+}
+
+export type ConflictItemSeverity =
+  (typeof ConflictItemSeverity)[keyof typeof ConflictItemSeverity];
+
+export const ConflictItemSeverity = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+} as const;
+
+export interface ConflictItem {
+  id: string;
+  conflictingRuleId: number;
+  conflictingRuleName: string;
+  /** Explanation of the logical conflict */
+  description: string;
+  severity: ConflictItemSeverity;
+}
+
+export interface RuleAnalysis {
+  ambiguities: AmbiguityItem[];
+  edgeCases: EdgeCaseItem[];
+  conflicts: ConflictItem[];
+}
+
+export type RuleSimulationResultDecision =
+  (typeof RuleSimulationResultDecision)[keyof typeof RuleSimulationResultDecision];
+
+export const RuleSimulationResultDecision = {
+  approved: "approved",
+  denied: "denied",
+  escalated: "escalated",
+  needs_review: "needs_review",
+} as const;
+
+export interface RuleSimulationResult {
+  decision: RuleSimulationResultDecision;
+  /** Plain-language explanation of the decision */
+  reasoning: string;
+  /** Which conditions were satisfied */
+  conditionsMet: string[];
+  /** Which conditions were not satisfied */
+  conditionsNotMet: string[];
+}
+
 /**
  * @nullable
  */

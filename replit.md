@@ -19,6 +19,15 @@ This workspace hosts **Executable Governance** — a governance-as-code platform
 - Enums: `policy_status` (draft/published/archived), `rule_status` (draft/published/archived), `rule_outcome` (approved/denied/escalated/needs_review)
 - Rule version increments on changes to `naturalLanguageText`, `outcome`, or `structuredRepresentation`; create + version insert run inside a single DB transaction.
 
+## AI Features (Task #2)
+
+- **Rule Analysis** (`POST /api/rules/:id/analyze`): Streams SSE analysis via GPT-5.4. Returns ambiguities, edge cases, and conflicts with existing sibling rules. Frontend `RuleAnalysisPanel` handles streaming, shows three card sections, each with "Accept suggestion" actions that persist to `resolvedAmbiguities`/`resolvedEdgeCases` fields.
+- **Scenario Simulation** (`POST /api/rules/:id/simulate`): Runs a hypothetical scenario against a rule and returns decision + reasoning. Frontend `SimulationPanel` shows the decision badge (APPROVED/DENIED/ESCALATED/NEEDS_REVIEW) plus condition breakdown.
+- **Publishing gate**: Publish button is disabled if the user has run an analysis and there are unresolved ambiguities or edge cases.
+- **RuleDetailPage tabs**: Rule / Analysis / Simulate / History.
+- **AI integration**: `@workspace/integrations-openai-ai-server` (Replit-proxied OpenAI, no user API key needed). Env: `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY`.
+- **DB tables added**: `conversations`, `messages` (from integration template, for future chat history).
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
@@ -30,6 +39,7 @@ This workspace hosts **Executable Governance** — a governance-as-code platform
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **AI**: OpenAI via Replit AI Integrations proxy (gpt-5.4)
 
 ## Key Commands
 

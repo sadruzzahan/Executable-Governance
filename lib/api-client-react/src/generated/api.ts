@@ -19,6 +19,7 @@ import type {
 import type {
   ActivityItem,
   AnalyticsSummary,
+  AnalyzeRuleBody,
   CreateOrganizationBody,
   CreatePolicyBody,
   CreateRuleBody,
@@ -38,9 +39,11 @@ import type {
   PolicyWithRules,
   PolicyWithStats,
   Rule,
+  RuleSimulationResult,
   RuleVersion,
   RuleVersionDiff,
   RuleWithVersions,
+  SimulateRuleBody,
   UpdateOrganizationBody,
   UpdatePolicyBody,
   UpdateRuleBody,
@@ -1754,6 +1757,180 @@ export function useGetRuleVersions<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE)
+ */
+export const getAnalyzeRuleUrl = (id: number) => {
+  return `/api/rules/${id}/analyze`;
+};
+
+export const analyzeRule = async (
+  id: number,
+  analyzeRuleBody: AnalyzeRuleBody,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getAnalyzeRuleUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeRuleBody),
+  });
+};
+
+export const getAnalyzeRuleMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeRule>>,
+    TError,
+    { id: number; data: BodyType<AnalyzeRuleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeRule>>,
+  TError,
+  { id: number; data: BodyType<AnalyzeRuleBody> },
+  TContext
+> => {
+  const mutationKey = ["analyzeRule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeRule>>,
+    { id: number; data: BodyType<AnalyzeRuleBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return analyzeRule(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeRule>>
+>;
+export type AnalyzeRuleMutationBody = BodyType<AnalyzeRuleBody>;
+export type AnalyzeRuleMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE)
+ */
+export const useAnalyzeRule = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeRule>>,
+    TError,
+    { id: number; data: BodyType<AnalyzeRuleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeRule>>,
+  TError,
+  { id: number; data: BodyType<AnalyzeRuleBody> },
+  TContext
+> => {
+  return useMutation(getAnalyzeRuleMutationOptions(options));
+};
+
+/**
+ * @summary Simulate how a rule would decide a given scenario
+ */
+export const getSimulateRuleUrl = (id: number) => {
+  return `/api/rules/${id}/simulate`;
+};
+
+export const simulateRule = async (
+  id: number,
+  simulateRuleBody: SimulateRuleBody,
+  options?: RequestInit,
+): Promise<RuleSimulationResult> => {
+  return customFetch<RuleSimulationResult>(getSimulateRuleUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(simulateRuleBody),
+  });
+};
+
+export const getSimulateRuleMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof simulateRule>>,
+    TError,
+    { id: number; data: BodyType<SimulateRuleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof simulateRule>>,
+  TError,
+  { id: number; data: BodyType<SimulateRuleBody> },
+  TContext
+> => {
+  const mutationKey = ["simulateRule"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof simulateRule>>,
+    { id: number; data: BodyType<SimulateRuleBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return simulateRule(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SimulateRuleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof simulateRule>>
+>;
+export type SimulateRuleMutationBody = BodyType<SimulateRuleBody>;
+export type SimulateRuleMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Simulate how a rule would decide a given scenario
+ */
+export const useSimulateRule = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof simulateRule>>,
+    TError,
+    { id: number; data: BodyType<SimulateRuleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof simulateRule>>,
+  TError,
+  { id: number; data: BodyType<SimulateRuleBody> },
+  TContext
+> => {
+  return useMutation(getSimulateRuleMutationOptions(options));
+};
 
 /**
  * @summary Diff two versions of a rule

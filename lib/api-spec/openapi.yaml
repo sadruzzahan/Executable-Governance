@@ -455,6 +455,68 @@ paths:
                 items:
                   $ref: "#/components/schemas/RuleVersion"
 
+  /rules/{id}/analyze:
+    post:
+      operationId: analyzeRule
+      tags: [rules]
+      summary: Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRuleBody"
+      responses:
+        "200":
+          description: Server-sent events stream; final event contains full RuleAnalysis
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "404":
+          description: Rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rules/{id}/simulate:
+    post:
+      operationId: simulateRule
+      tags: [rules]
+      summary: Simulate how a rule would decide a given scenario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRuleBody"
+      responses:
+        "200":
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleSimulationResult"
+        "404":
+          description: Rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /rules/{id}/diff:
     get:
       operationId: getRuleVersionDiff
@@ -966,6 +1028,134 @@ components:
         - from
         - to
         - changes
+
+    AnalyzeRuleBody:
+      type: object
+      properties:
+        naturalLanguageText:
+          type: string
+          description: "The rule text to analyze"
+      required:
+        - naturalLanguageText
+
+    SimulateRuleBody:
+      type: object
+      properties:
+        scenario:
+          type: string
+          description: "Plain-language scenario description to simulate"
+      required:
+        - scenario
+
+    AmbiguityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        question:
+          type: string
+          description: "The open question the rule leaves unresolved"
+        suggestedResolution:
+          type: string
+          description: "AI-suggested resolution"
+        field:
+          type: ["string", "null"]
+          description: "Which structured field this resolution maps to"
+        resolved:
+          type: boolean
+      required:
+        - id
+        - question
+        - suggestedResolution
+        - resolved
+
+    EdgeCaseItem:
+      type: object
+      properties:
+        id:
+          type: string
+        scenario:
+          type: string
+          description: "A scenario the rule doesn't explicitly handle"
+        suggestedBehavior:
+          type: string
+          description: "AI-suggested default behavior"
+        field:
+          type: ["string", "null"]
+        resolved:
+          type: boolean
+      required:
+        - id
+        - scenario
+        - suggestedBehavior
+        - resolved
+
+    ConflictItem:
+      type: object
+      properties:
+        id:
+          type: string
+        conflictingRuleId:
+          type: integer
+        conflictingRuleName:
+          type: string
+        description:
+          type: string
+          description: "Explanation of the logical conflict"
+        severity:
+          type: string
+          enum: [low, medium, high]
+      required:
+        - id
+        - conflictingRuleId
+        - conflictingRuleName
+        - description
+        - severity
+
+    RuleAnalysis:
+      type: object
+      properties:
+        ambiguities:
+          type: array
+          items:
+            $ref: "#/components/schemas/AmbiguityItem"
+        edgeCases:
+          type: array
+          items:
+            $ref: "#/components/schemas/EdgeCaseItem"
+        conflicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConflictItem"
+      required:
+        - ambiguities
+        - edgeCases
+        - conflicts
+
+    RuleSimulationResult:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [approved, denied, escalated, needs_review]
+        reasoning:
+          type: string
+          description: "Plain-language explanation of the decision"
+        conditionsMet:
+          type: array
+          items:
+            type: string
+          description: "Which conditions were satisfied"
+        conditionsNotMet:
+          type: array
+          items:
+            type: string
+          description: "Which conditions were not satisfied"
+      required:
+        - decision
+        - reasoning
+        - conditionsMet
+        - conditionsNotMet
 
     UpdateRuleBody:
       type: object

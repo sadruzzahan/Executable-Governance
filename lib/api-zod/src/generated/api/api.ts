@@ -515,6 +515,43 @@ export const GetRuleVersionsResponseItem = zod.object({
 export const GetRuleVersionsResponse = zod.array(GetRuleVersionsResponseItem);
 
 /**
+ * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE)
+ */
+export const AnalyzeRuleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AnalyzeRuleBody = zod.object({
+  naturalLanguageText: zod.string().describe("The rule text to analyze"),
+});
+
+/**
+ * @summary Simulate how a rule would decide a given scenario
+ */
+export const SimulateRuleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SimulateRuleBody = zod.object({
+  scenario: zod
+    .string()
+    .describe("Plain-language scenario description to simulate"),
+});
+
+export const SimulateRuleResponse = zod.object({
+  decision: zod.enum(["approved", "denied", "escalated", "needs_review"]),
+  reasoning: zod
+    .string()
+    .describe("Plain-language explanation of the decision"),
+  conditionsMet: zod
+    .array(zod.string())
+    .describe("Which conditions were satisfied"),
+  conditionsNotMet: zod
+    .array(zod.string())
+    .describe("Which conditions were not satisfied"),
+});
+
+/**
  * @summary Diff two versions of a rule
  */
 export const GetRuleVersionDiffParams = zod.object({

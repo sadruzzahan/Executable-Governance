@@ -20,8 +20,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StructuredRuleEditor, DEFAULT_STRUCTURED, type StructuredRule } from "@/components/StructuredRuleEditor";
-import { ArrowLeft, Send, Trash2, History, Code2, FileText, Pencil, GitCompare } from "lucide-react";
+import { RuleAnalysisPanel, type RuleAnalysis, type AmbiguityItem, type EdgeCaseItem } from "@/components/RuleAnalysisPanel";
+import { SimulationPanel } from "@/components/SimulationPanel";
+import { ArrowLeft, Send, Trash2, History, Code2, FileText, Pencil, GitCompare, Sparkles, PlayCircle, AlertCircle } from "lucide-react";
 
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -42,6 +45,16 @@ function toStructured(value: unknown): StructuredRule {
   return DEFAULT_STRUCTURED;
 }
 
+function toAmbiguities(value: unknown): AmbiguityItem[] {
+  if (!Array.isArray(value)) return [];
+  return value as AmbiguityItem[];
+}
+
+function toEdgeCases(value: unknown): EdgeCaseItem[] {
+  if (!Array.isArray(value)) return [];
+  return value as EdgeCaseItem[];
+}
+
 export function RuleDetailPage() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
@@ -56,6 +69,8 @@ export function RuleDetailPage() {
   const [priority, setPriority] = useState("10");
   const [structured, setStructured] = useState<StructuredRule>(DEFAULT_STRUCTURED);
   const [changeNote, setChangeNote] = useState("");
+
+  const [analysis, setAnalysis] = useState<RuleAnalysis | null>(null);
 
   useEffect(() => {
     if (!rule) return;
@@ -100,6 +115,16 @@ export function RuleDetailPage() {
     { query: { enabled: diffEnabled, queryKey: getGetRuleVersionDiffQueryKey(id, diffParams) } },
   );
 
+  const resolvedAmbiguities = toAmbiguities(rule?.resolvedAmbiguities);
+  const resolvedEdgeCases = toEdgeCases(rule?.resolvedEdgeCases);
+
+  const unresolvedCount = analysis
+    ? analysis.ambiguities.filter((a) => !resolvedAmbiguities.some((r) => r.id === a.id)).length +
+      analysis.edgeCases.filter((e) => !resolvedEdgeCases.some((r) => r.id === e.id)).length
+    : 0;
+
+  const publishBlocked = analysis !== null && unresolvedCount > 0;
+
   if (!rule) {
     return (
       <AppLayout>
@@ -141,9 +166,21 @@ export function RuleDetailPage() {
               <Pencil className="w-4 h-4 mr-1" /> Edit
             </Button>
             {rule.status !== "published" && (
-              <Button onClick={() => publish.mutate({ id })} data-testid="button-publish-rule">
-                <Send className="w-4 h-4 mr-1" /> Publish
-              </Button>
+              <div className="flex items-center gap-2">
+                {publishBlocked && (
+                  <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400" data-testid="publish-blocked-notice">
+                    <AlertCircle className="w-3.5 h-3.5" /> {unresolvedCount} unresolved
+                  </div>
+                )}
+                <Button
+                  onClick={() => publish.mutate({ id })}
+                  disabled={publishBlocked}
+                  title={publishBlocked ? `Resolve ${unresolvedCount} flagged item(s) before publishing` : "Publish rule"}
+                  data-testid="button-publish-rule"
+                >
+                  <Send className="w-4 h-4 mr-1" /> Publish
+                </Button>
+              </div>
             )}
             <Button
               variant="outline"
@@ -168,86 +205,133 @@ export function RuleDetailPage() {
           <span className="text-xs text-muted-foreground">Priority {rule.priority}</span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="p-5">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2 mb-3">
-              <FileText className="w-3.5 h-3.5" /> Natural Language
-            </div>
-            <p className="text-sm leading-relaxed text-foreground" data-testid="rule-natural-text">{rule.naturalLanguageText}</p>
-          </Card>
-          <Card className="p-5">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2 mb-3">
-              <Code2 className="w-3.5 h-3.5" /> Structured Representation
-            </div>
-            <pre className="text-xs font-mono bg-muted/50 rounded p-3 overflow-x-auto text-foreground" data-testid="rule-structured">
-{JSON.stringify(rule.structuredRepresentation, null, 2)}
-            </pre>
-          </Card>
-        </div>
-
-        <Card>
-          <div className="px-5 py-3 border-b border-border flex items-center gap-2 flex-wrap">
-            <History className="w-4 h-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">Version History</h3>
-            <span className="text-xs text-muted-foreground">({rule.versions.length})</span>
-            {rule.versions.length >= 2 && (
-              <div className="ml-auto flex items-center gap-2">
-                <GitCompare className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Diff</span>
-                <Select value={diffFrom != null ? String(diffFrom) : ""} onValueChange={(v) => setDiffFrom(Number(v))}>
-                  <SelectTrigger className="w-20 h-7 text-xs" data-testid="select-diff-from"><SelectValue placeholder="from" /></SelectTrigger>
-                  <SelectContent>
-                    {rule.versions.map((v) => (<SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-                <span className="text-xs text-muted-foreground">→</span>
-                <Select value={diffTo != null ? String(diffTo) : ""} onValueChange={(v) => setDiffTo(Number(v))}>
-                  <SelectTrigger className="w-20 h-7 text-xs" data-testid="select-diff-to"><SelectValue placeholder="to" /></SelectTrigger>
-                  <SelectContent>
-                    {rule.versions.map((v) => (<SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-          {diffEnabled && diff && (
-            <div className="px-5 py-4 border-b border-border bg-muted/20" data-testid="diff-result">
-              {diff.changes.length === 0 ? (
-                <div className="text-xs text-muted-foreground">No differences between v{diffFrom} and v{diffTo}.</div>
-              ) : (
-                <ul className="space-y-3">
-                  {diff.changes.map((c) => (
-                    <li key={c.field} className="text-xs">
-                      <div className="font-medium text-foreground mb-1">{c.field}</div>
-                      <div className="grid grid-cols-2 gap-3 font-mono">
-                        <div className="rounded bg-red-500/10 border border-red-500/20 p-2 text-red-700 dark:text-red-300 break-all">
-                          {typeof c.before === "string" ? c.before : JSON.stringify(c.before, null, 2)}
-                        </div>
-                        <div className="rounded bg-emerald-500/10 border border-emerald-500/20 p-2 text-emerald-700 dark:text-emerald-300 break-all">
-                          {typeof c.after === "string" ? c.after : JSON.stringify(c.after, null, 2)}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+        <Tabs defaultValue="rule" className="w-full">
+          <TabsList>
+            <TabsTrigger value="rule" data-testid="tab-rule">
+              <FileText className="w-3.5 h-3.5 mr-1.5" /> Rule
+            </TabsTrigger>
+            <TabsTrigger value="analysis" data-testid="tab-analysis">
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Analysis
+              {unresolvedCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-amber-500 text-white text-[10px] w-4 h-4 flex items-center justify-center">
+                  {unresolvedCount}
+                </span>
               )}
-            </div>
-          )}
-          <ul className="divide-y divide-border">
-            {rule.versions.map((v) => (
-              <li key={v.id} className="px-5 py-3 flex items-start gap-4" data-testid={`version-${v.version}`}>
-                <div className="text-xs font-mono px-2 py-0.5 bg-muted rounded tabular-nums shrink-0">v{v.version}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-foreground">{v.naturalLanguageText}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {v.changedBy ?? "system"} · {v.changeNote ?? "no note"} · {formatDate(v.createdAt)}
-                  </div>
+            </TabsTrigger>
+            <TabsTrigger value="simulate" data-testid="tab-simulate">
+              <PlayCircle className="w-3.5 h-3.5 mr-1.5" /> Simulate
+            </TabsTrigger>
+            <TabsTrigger value="history" data-testid="tab-history">
+              <History className="w-3.5 h-3.5 mr-1.5" /> History
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="rule" className="mt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="p-5">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2 mb-3">
+                  <FileText className="w-3.5 h-3.5" /> Natural Language
                 </div>
-                <OutcomeBadge outcome={v.outcome} />
-              </li>
-            ))}
-          </ul>
-        </Card>
+                <p className="text-sm leading-relaxed text-foreground" data-testid="rule-natural-text">{rule.naturalLanguageText}</p>
+              </Card>
+              <Card className="p-5">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2 mb-3">
+                  <Code2 className="w-3.5 h-3.5" /> Structured Representation
+                </div>
+                <pre className="text-xs font-mono bg-muted/50 rounded p-3 overflow-x-auto text-foreground" data-testid="rule-structured">
+{JSON.stringify(rule.structuredRepresentation, null, 2)}
+                </pre>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analysis" className="mt-4">
+            <RuleAnalysisPanel
+              ruleId={id}
+              naturalLanguageText={rule.naturalLanguageText}
+              analysis={analysis}
+              onAnalysisComplete={setAnalysis}
+              resolvedAmbiguities={resolvedAmbiguities}
+              resolvedEdgeCases={resolvedEdgeCases}
+              onRefreshRule={invalidate}
+            />
+          </TabsContent>
+
+          <TabsContent value="simulate" className="mt-4">
+            <Card className="p-5">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2 mb-4">
+                <PlayCircle className="w-3.5 h-3.5" /> Scenario Simulation
+              </div>
+              <SimulationPanel ruleId={id} />
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <Card>
+              <div className="px-5 py-3 border-b border-border flex items-center gap-2 flex-wrap">
+                <History className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">Version History</h3>
+                <span className="text-xs text-muted-foreground">({rule.versions.length})</span>
+                {rule.versions.length >= 2 && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <GitCompare className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Diff</span>
+                    <Select value={diffFrom != null ? String(diffFrom) : ""} onValueChange={(v) => setDiffFrom(Number(v))}>
+                      <SelectTrigger className="w-20 h-7 text-xs" data-testid="select-diff-from"><SelectValue placeholder="from" /></SelectTrigger>
+                      <SelectContent>
+                        {rule.versions.map((v) => (<SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs text-muted-foreground">→</span>
+                    <Select value={diffTo != null ? String(diffTo) : ""} onValueChange={(v) => setDiffTo(Number(v))}>
+                      <SelectTrigger className="w-20 h-7 text-xs" data-testid="select-diff-to"><SelectValue placeholder="to" /></SelectTrigger>
+                      <SelectContent>
+                        {rule.versions.map((v) => (<SelectItem key={v.version} value={String(v.version)}>v{v.version}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+              {diffEnabled && diff && (
+                <div className="px-5 py-4 border-b border-border bg-muted/20" data-testid="diff-result">
+                  {diff.changes.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">No differences between v{diffFrom} and v{diffTo}.</div>
+                  ) : (
+                    <ul className="space-y-3">
+                      {diff.changes.map((c) => (
+                        <li key={c.field} className="text-xs">
+                          <div className="font-medium text-foreground mb-1">{c.field}</div>
+                          <div className="grid grid-cols-2 gap-3 font-mono">
+                            <div className="rounded bg-red-500/10 border border-red-500/20 p-2 text-red-700 dark:text-red-300 break-all">
+                              {typeof c.before === "string" ? c.before : JSON.stringify(c.before, null, 2)}
+                            </div>
+                            <div className="rounded bg-emerald-500/10 border border-emerald-500/20 p-2 text-emerald-700 dark:text-emerald-300 break-all">
+                              {typeof c.after === "string" ? c.after : JSON.stringify(c.after, null, 2)}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              <ul className="divide-y divide-border">
+                {rule.versions.map((v) => (
+                  <li key={v.id} className="px-5 py-3 flex items-start gap-4" data-testid={`version-${v.version}`}>
+                    <div className="text-xs font-mono px-2 py-0.5 bg-muted rounded tabular-nums shrink-0">v{v.version}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-foreground">{v.naturalLanguageText}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {v.changedBy ?? "system"} · {v.changeNote ?? "no note"} · {formatDate(v.createdAt)}
+                      </div>
+                    </div>
+                    <OutcomeBadge outcome={v.outcome} />
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
