@@ -1,3 +1,4 @@
+import { send400 } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
 import { db, rulesTable, policiesTable, decisionsTable, organizationsTable } from "@workspace/db";
@@ -181,7 +182,7 @@ Write a clear, specific explanation referencing the exact values and rule names.
 
 router.post("/decisions/evaluate", async (req, res): Promise<void> => {
   const body = EvaluateDecisionParams.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  if (!body.success) { send400(res, req, body.error); return; }
 
   const { policyId, actor, action, context, scenario } = body.data;
   const evalContext: Record<string, unknown> = { actor, action, ...(context ?? {}) };
@@ -280,7 +281,7 @@ router.post("/decisions/evaluate", async (req, res): Promise<void> => {
 
 router.get("/decisions", async (req, res): Promise<void> => {
   const query = ListDecisionsQueryParams.safeParse(req.query);
-  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  if (!query.success) { send400(res, req, query.error); return; }
 
   const { policyId, outcome, actor, dateFrom, dateTo, page, limit } = query.data;
   const pageNum = page ?? 1;
@@ -335,7 +336,7 @@ router.get("/decisions", async (req, res): Promise<void> => {
 
 router.get("/decisions/:id", async (req, res): Promise<void> => {
   const params = GetDecisionParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { send400(res, req, params.error); return; }
 
   const [row] = await db
     .select({

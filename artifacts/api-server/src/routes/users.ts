@@ -1,3 +1,4 @@
+import { send400 } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
@@ -15,7 +16,7 @@ const router: IRouter = Router();
 router.get("/users", async (req, res): Promise<void> => {
   const query = ListUsersQueryParams.safeParse(req.query);
   if (!query.success) {
-    res.status(400).json({ error: query.error.message });
+    send400(res, req, query.error);
     return;
   }
   const rows = query.data.organizationId != null
@@ -27,7 +28,7 @@ router.get("/users", async (req, res): Promise<void> => {
 router.post("/users", async (req, res): Promise<void> => {
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    send400(res, req, parsed.error);
     return;
   }
   const [row] = await db.insert(usersTable).values(parsed.data).returning();
@@ -37,7 +38,7 @@ router.post("/users", async (req, res): Promise<void> => {
 router.get("/users/:id", async (req, res): Promise<void> => {
   const params = GetUserParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const [row] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.id));
@@ -51,12 +52,12 @@ router.get("/users/:id", async (req, res): Promise<void> => {
 router.patch("/users/:id", async (req, res): Promise<void> => {
   const params = UpdateUserParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const parsed = UpdateUserBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    send400(res, req, parsed.error);
     return;
   }
   const updates: Record<string, unknown> = {};
@@ -80,7 +81,7 @@ router.patch("/users/:id", async (req, res): Promise<void> => {
 router.delete("/users/:id", async (req, res): Promise<void> => {
   const params = DeleteUserParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   await db.delete(usersTable).where(eq(usersTable.id, params.data.id));

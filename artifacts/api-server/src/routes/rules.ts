@@ -1,3 +1,4 @@
+import { send400 } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, rulesTable, ruleVersionsTable, policiesTable } from "@workspace/db";
@@ -33,7 +34,7 @@ function compileRuleConditions(structuredRepresentation: unknown): Array<{ field
 router.get("/rules", async (req, res): Promise<void> => {
   const query = ListRulesQueryParams.safeParse(req.query);
   if (!query.success) {
-    res.status(400).json({ error: query.error.message });
+    send400(res, req, query.error);
     return;
   }
   const conditions = [];
@@ -51,7 +52,7 @@ router.get("/rules", async (req, res): Promise<void> => {
 router.post("/rules", async (req, res): Promise<void> => {
   const parsed = CreateRuleBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    send400(res, req, parsed.error);
     return;
   }
   const row = await db.transaction(async (tx) => {
@@ -73,7 +74,7 @@ router.post("/rules", async (req, res): Promise<void> => {
 router.get("/rules/:id", async (req, res): Promise<void> => {
   const params = GetRuleParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
 
@@ -111,12 +112,12 @@ router.get("/rules/:id", async (req, res): Promise<void> => {
 router.patch("/rules/:id", async (req, res): Promise<void> => {
   const params = UpdateRuleParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const parsed = UpdateRuleBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    send400(res, req, parsed.error);
     return;
   }
 
@@ -172,7 +173,7 @@ router.patch("/rules/:id", async (req, res): Promise<void> => {
 router.delete("/rules/:id", async (req, res): Promise<void> => {
   const params = DeleteRuleParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   await db.delete(rulesTable).where(eq(rulesTable.id, params.data.id));
@@ -182,7 +183,7 @@ router.delete("/rules/:id", async (req, res): Promise<void> => {
 router.post("/rules/:id/publish", async (req, res): Promise<void> => {
   const params = PublishRuleParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const [existing] = await db.select().from(rulesTable).where(eq(rulesTable.id, params.data.id));
@@ -214,7 +215,7 @@ router.post("/rules/:id/publish", async (req, res): Promise<void> => {
 router.get("/rules/:id/versions", async (req, res): Promise<void> => {
   const params = GetRuleVersionsParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const rows = await db.select().from(ruleVersionsTable).where(eq(ruleVersionsTable.ruleId, params.data.id)).orderBy(desc(ruleVersionsTable.version));
@@ -224,12 +225,12 @@ router.get("/rules/:id/versions", async (req, res): Promise<void> => {
 router.get("/rules/:id/diff", async (req, res): Promise<void> => {
   const params = GetRuleVersionDiffParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const query = GetRuleVersionDiffQueryParams.safeParse(req.query);
   if (!query.success) {
-    res.status(400).json({ error: query.error.message });
+    send400(res, req, query.error);
     return;
   }
   const versions = await db

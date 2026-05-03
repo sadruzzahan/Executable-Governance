@@ -1,3 +1,4 @@
+import { send400 } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq, and, sql, desc, gte, inArray } from "drizzle-orm";
 import {
@@ -20,7 +21,7 @@ const router: IRouter = Router();
 
 router.get("/analytics/summary", async (req, res): Promise<void> => {
   const query = GetAnalyticsSummaryQueryParams.safeParse(req.query);
-  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  if (!query.success) { send400(res, req, query.error); return; }
   const orgId = query.data.organizationId;
 
   const [orgCount] = await db.select({ c: sql<number>`cast(count(*) as int)` }).from(organizationsTable);
@@ -294,7 +295,7 @@ router.get("/analytics/rule-health", async (req, res): Promise<void> => {
 
 router.get("/analytics/recent-activity", async (req, res): Promise<void> => {
   const query = GetRecentActivityQueryParams.safeParse(req.query);
-  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  if (!query.success) { send400(res, req, query.error); return; }
   const limit = query.data.limit ?? 20;
   const orgId = query.data.organizationId;
 
@@ -364,7 +365,7 @@ router.get("/analytics/recent-activity", async (req, res): Promise<void> => {
 
 router.get("/analytics/policy-breakdown", async (req, res): Promise<void> => {
   const query = GetPolicyBreakdownQueryParams.safeParse(req.query);
-  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
+  if (!query.success) { send400(res, req, query.error); return; }
   const orgId = query.data.organizationId;
   const conditions = orgId != null ? [eq(policiesTable.organizationId, orgId)] : [];
 

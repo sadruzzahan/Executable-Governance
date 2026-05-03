@@ -1,3 +1,4 @@
+import { send400 } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq, and, ne } from "drizzle-orm";
 import { db, rulesTable } from "@workspace/db";
@@ -78,9 +79,9 @@ function detectServerConflicts(
 // Consume on the client via raw fetch + ReadableStream; the generated orval hook is not suitable for SSE.
 router.post("/rules/:id/analyze", async (req, res): Promise<void> => {
   const params = AnalyzeRuleParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { send400(res, req, params.error); return; }
   const body = AnalyzeRuleBody.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  if (!body.success) { send400(res, req, body.error); return; }
 
   const [rule] = await db
     .select({ id: rulesTable.id, name: rulesTable.name, policyId: rulesTable.policyId, outcome: rulesTable.outcome, structuredRepresentation: rulesTable.structuredRepresentation })
@@ -275,9 +276,9 @@ ${siblingContext}`;
 // Consume on the client via raw fetch + ReadableStream; the generated orval hook is not suitable for SSE.
 router.post("/rules/:id/simulate", async (req, res): Promise<void> => {
   const params = SimulateRuleParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { send400(res, req, params.error); return; }
   const body = SimulateRuleBody.safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+  if (!body.success) { send400(res, req, body.error); return; }
 
   const [rule] = await db
     .select({ id: rulesTable.id, name: rulesTable.name, naturalLanguageText: rulesTable.naturalLanguageText, outcome: rulesTable.outcome, structuredRepresentation: rulesTable.structuredRepresentation })

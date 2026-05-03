@@ -1,3 +1,4 @@
+import { send400 } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { db, policiesTable, rulesTable, organizationsTable } from "@workspace/db";
@@ -17,7 +18,7 @@ const router: IRouter = Router();
 router.get("/policies", async (req, res): Promise<void> => {
   const query = ListPoliciesQueryParams.safeParse(req.query);
   if (!query.success) {
-    res.status(400).json({ error: query.error.message });
+    send400(res, req, query.error);
     return;
   }
 
@@ -54,7 +55,7 @@ router.get("/policies", async (req, res): Promise<void> => {
 router.post("/policies", async (req, res): Promise<void> => {
   const parsed = CreatePolicyBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    send400(res, req, parsed.error);
     return;
   }
   const [row] = await db.insert(policiesTable).values(parsed.data).returning();
@@ -64,7 +65,7 @@ router.post("/policies", async (req, res): Promise<void> => {
 router.get("/policies/:id", async (req, res): Promise<void> => {
   const params = GetPolicyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const [row] = await db
@@ -96,12 +97,12 @@ router.get("/policies/:id", async (req, res): Promise<void> => {
 router.patch("/policies/:id", async (req, res): Promise<void> => {
   const params = UpdatePolicyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const parsed = UpdatePolicyBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    send400(res, req, parsed.error);
     return;
   }
   const updates: Record<string, unknown> = {};
@@ -125,7 +126,7 @@ router.patch("/policies/:id", async (req, res): Promise<void> => {
 router.delete("/policies/:id", async (req, res): Promise<void> => {
   const params = DeletePolicyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   await db.delete(policiesTable).where(eq(policiesTable.id, params.data.id));
@@ -135,7 +136,7 @@ router.delete("/policies/:id", async (req, res): Promise<void> => {
 router.post("/policies/:id/publish", async (req, res): Promise<void> => {
   const params = PublishPolicyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const [row] = await db.update(policiesTable).set({ status: "published" }).where(eq(policiesTable.id, params.data.id)).returning();
@@ -149,7 +150,7 @@ router.post("/policies/:id/publish", async (req, res): Promise<void> => {
 router.post("/policies/:id/archive", async (req, res): Promise<void> => {
   const params = ArchivePolicyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const [row] = await db.update(policiesTable).set({ status: "archived" }).where(eq(policiesTable.id, params.data.id)).returning();

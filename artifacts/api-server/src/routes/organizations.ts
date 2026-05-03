@@ -1,3 +1,4 @@
+import { send400 } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, organizationsTable } from "@workspace/db";
@@ -19,7 +20,7 @@ router.get("/organizations", async (_req, res): Promise<void> => {
 router.post("/organizations", async (req, res): Promise<void> => {
   const parsed = CreateOrganizationBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    send400(res, req, parsed.error);
     return;
   }
   const [row] = await db.insert(organizationsTable).values(parsed.data).returning();
@@ -29,7 +30,7 @@ router.post("/organizations", async (req, res): Promise<void> => {
 router.get("/organizations/:id", async (req, res): Promise<void> => {
   const params = GetOrganizationParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const [row] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, params.data.id));
@@ -43,12 +44,12 @@ router.get("/organizations/:id", async (req, res): Promise<void> => {
 router.patch("/organizations/:id", async (req, res): Promise<void> => {
   const params = UpdateOrganizationParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   const parsed = UpdateOrganizationBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    send400(res, req, parsed.error);
     return;
   }
   const updates: Record<string, unknown> = {};
@@ -72,7 +73,7 @@ router.patch("/organizations/:id", async (req, res): Promise<void> => {
 router.delete("/organizations/:id", async (req, res): Promise<void> => {
   const params = DeleteOrganizationParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    send400(res, req, params.error);
     return;
   }
   await db.delete(organizationsTable).where(eq(organizationsTable.id, params.data.id));

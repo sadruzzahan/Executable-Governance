@@ -19,6 +19,19 @@ This workspace hosts **Executable Governance** — a governance-as-code platform
 - Enums: `policy_status` (draft/published/archived), `rule_status` (draft/published/archived), `rule_outcome` (approved/denied/escalated/needs_review)
 - Rule version increments on changes to `naturalLanguageText`, `outcome`, or `structuredRepresentation`; create + version insert run inside a single DB transaction.
 
+## Production Hardening (Task #8)
+
+- **Boot-time env validation** (`api-server/src/lib/env.ts`): Zod-validated env at process start; required secrets fail fast with no silent defaults. `getEnv()` is lazy (validates on first read) so middleware factories invoked during ESM import-hoisting still see a populated env.
+- **Middleware chain** (`api-server/src/app.ts`, in order): `requestId` → `securityHeaders` (helmet, strict CSP, HSTS in prod, X-Frame DENY) → `corsConfig` (env-driven allow-list, locked by default; `REPLIT_DEV_DOMAIN` auto-allowed in dev) → body parsers → `csrfProtection` (double-submit cookie; no-op until session cookie lands) → `globalLimiter` (600/min) → per-route limiters → routes → `notFoundHandler` → `errorHandler`.
+- **Rate limits**: global 600/min, AI 30/min on `/api/rules/:id/{analyze,simulate}`, decision 120/min on `/api/decisions/evaluate`, client-errors 60/min, auth/webhook stubs ready. All emit `Retry-After` and a `{error:"rate_limited", policy, retryAfter}` envelope. `RATE_LIMIT_DISABLED=1` bypasses for tests.
+- **Validation envelope**: every Zod failure across all 7 route files goes through `send400(res, req, zodError)` → `{error:"validation_failed", message, requestId, fields:[{path,message,code}]}`.
+- **Centralized error handler** (`middlewares/errorHandler.ts`): handles `ZodError`, `HttpError`, CORS rejection (403), and unknown 5xx with stack hidden in prod. Every response carries the request id.
+- **Error tracking** (`lib/errorTracking.ts`): `captureException` / `captureMessage` always emit a structured pino line; if `SENTRY_DSN` is set AND `@sentry/node` is installed (optional dep, dynamic import), the SDK is initialized at boot and events are also forwarded to Sentry. Missing SDK degrades gracefully to log-only with a single warning.
+- **Frontend error reporting** (`executable-governance/src/lib/errorReporter.ts`, wired in `main.tsx`): `window.error` + `unhandledrejection` POST to `/api/client-errors` with a per-session cap of 50; backend has its own 60/min/IP cap.
+- **Structured logging** (`lib/logger.ts`): pino with extended redact list (auth headers, tokens, passwords, common PII keys) and base bindings (service, env, version).
+- **Process safety nets** (`src/index.ts`): `uncaughtException` + `unhandledRejection` handlers route through `captureException`, with deliberate exit on hard crashes; SIGTERM/SIGINT graceful shutdown.
+- **Dependency posture**: `pnpm.overrides` in root `package.json` patches transitive vulns (lodash, path-to-regexp, picomatch, brace-expansion, esbuild, postcss, yaml). Audit: 0 critical / 0 high / 0 moderate.
+
 ## Dashboard + Governance Analytics (Task #4)
 
 - **Enhanced summary** (`GET /api/analytics/summary`): Now also returns `decisionsLast30d`, `approvalRate` (0–100), `exceptionRate` (0–100) — computed over decisions in the last 30 days.
