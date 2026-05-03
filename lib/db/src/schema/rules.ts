@@ -18,6 +18,7 @@ export const rulesTable = pgTable("rules", {
   version: integer("version").notNull().default(1),
   resolvedAmbiguities: jsonb("resolved_ambiguities"),
   resolvedEdgeCases: jsonb("resolved_edge_cases"),
+  compiledConditions: jsonb("compiled_conditions"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

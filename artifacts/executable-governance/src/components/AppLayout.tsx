@@ -7,6 +7,8 @@ import {
   Users,
   Building2,
   ShieldCheck,
+  FlaskConical,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +18,8 @@ const navItems = [
   { href: "/rules", label: "Rules", icon: Scale, testId: "nav-rules" },
   { href: "/organizations", label: "Organizations", icon: Building2, testId: "nav-organizations" },
   { href: "/users", label: "Users", icon: Users, testId: "nav-users" },
+  { href: "/decisions", label: "Decisions", icon: ListChecks, testId: "nav-decisions" },
+  { href: "/playground", label: "Playground", icon: FlaskConical, testId: "nav-playground" },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {

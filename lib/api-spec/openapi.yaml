@@ -16,6 +16,8 @@ tags:
     description: Policy management
   - name: rules
     description: Rule management
+  - name: decisions
+    description: Decision engine and audit log
   - name: users
     description: User management
   - name: analytics
@@ -660,6 +662,115 @@ paths:
         "204":
           description: Deleted
 
+  # Decisions (audit log + engine)
+  /decisions/evaluate:
+    post:
+      operationId: evaluateDecision
+      tags: [decisions]
+      summary: Evaluate a governance query against a policy's published rules and record the decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvaluateDecisionBody"
+      responses:
+        "200":
+          description: Decision result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionResult"
+        "404":
+          description: Policy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Policy not published or has no published rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /decisions:
+    get:
+      operationId: listDecisions
+      tags: [decisions]
+      summary: List decisions with optional filters (paginated, append-only audit log)
+      parameters:
+        - name: policyId
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+        - name: outcome
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+            enum: [approved, denied, escalated, needs_review, null]
+        - name: actor
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: ISO 8601 date string
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+          description: ISO 8601 date string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Paginated list of decisions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionList"
+
+  /decisions/{id}:
+    get:
+      operationId: getDecision
+      tags: [decisions]
+      summary: Get a decision with full reasoning chain
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Decision with full details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   # Analytics (wow endpoints)
   /analytics/summary:
     get:
@@ -1246,6 +1357,161 @@ components:
         role:
           type: ["string", "null"]
           enum: [reader, editor, approver, admin, null]
+
+    # Decision schemas
+    EvaluateDecisionBody:
+      type: object
+      properties:
+        policyId:
+          type: integer
+          description: "ID of the published policy to evaluate against"
+        actor:
+          type: string
+          description: "Who is making the request (e.g. email, user ID)"
+        action:
+          type: string
+          description: "What action they are attempting (e.g. submit_expense)"
+        context:
+          type: object
+          additionalProperties: true
+          description: "Key-value pairs of context fields (e.g. amount, currency, category)"
+        scenario:
+          type: string
+          description: "Optional plain-language description of the scenario"
+      required:
+        - policyId
+        - actor
+        - action
+
+    RuleRef:
+      type: object
+      properties:
+        ruleId:
+          type: integer
+        name:
+          type: string
+        priority:
+          type: integer
+        outcome:
+          type: string
+          enum: [approved, denied, escalated, needs_review]
+        matched:
+          type: boolean
+      required:
+        - ruleId
+        - name
+        - priority
+        - outcome
+        - matched
+
+    DecisionResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        decision:
+          type: string
+          enum: [approved, denied, escalated, needs_review]
+        reason:
+          type: string
+        rulesApplied:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleRef"
+        confidence:
+          type: integer
+          description: "0-100 confidence score"
+        explanation:
+          type: string
+        policyId:
+          type: integer
+        policyName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - decision
+        - reason
+        - rulesApplied
+        - confidence
+        - policyId
+        - policyName
+        - createdAt
+
+    DecisionSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: ["integer", "null"]
+        policyId:
+          type: ["integer", "null"]
+        actor:
+          type: string
+        action:
+          type: string
+        outcome:
+          type: string
+          enum: [approved, denied, escalated, needs_review]
+        confidence:
+          type: integer
+        scenario:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        policyName:
+          type: ["string", "null"]
+        organizationName:
+          type: ["string", "null"]
+      required:
+        - id
+        - actor
+        - action
+        - outcome
+        - confidence
+        - createdAt
+
+    DecisionDetail:
+      allOf:
+        - $ref: "#/components/schemas/DecisionSummary"
+        - type: object
+          properties:
+            contextJson:
+              type: object
+              additionalProperties: true
+            rulesAppliedJson:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            explanation:
+              type: ["string", "null"]
+          required:
+            - contextJson
+            - rulesAppliedJson
+
+    DecisionList:
+      type: object
+      properties:
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DecisionSummary"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - decisions
+        - total
+        - page
+        - limit
 
     # Analytics schemas
     AnalyticsSummary:

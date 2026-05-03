@@ -16,6 +16,20 @@ import {
 
 const router: IRouter = Router();
 
+function compileRuleConditions(structuredRepresentation: unknown): Array<{ field: string; operator: string; value: unknown; kind: string }> {
+  if (!structuredRepresentation || typeof structuredRepresentation !== "object") return [];
+  const obj = structuredRepresentation as Record<string, unknown>;
+  if (typeof obj.field === "string" && obj.operator !== undefined) {
+    return [{ field: obj.field, operator: String(obj.operator), value: obj.value, kind: typeof obj.kind === "string" ? obj.kind : "threshold" }];
+  }
+  if (Array.isArray(obj.conditions)) {
+    return (obj.conditions as Record<string, unknown>[])
+      .filter((c) => typeof c.field === "string")
+      .map((c) => ({ field: String(c.field), operator: String(c.operator ?? "="), value: c.value, kind: String(c.kind ?? "threshold") }));
+  }
+  return [];
+}
+
 router.get("/rules", async (req, res): Promise<void> => {
   const query = ListRulesQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -183,7 +197,13 @@ router.post("/rules/:id/publish", async (req, res): Promise<void> => {
     res.status(422).json({ error: `Cannot publish: ${unresolvedCount} unresolved analysis item(s). Resolve or override all flagged items first.` });
     return;
   }
-  const [row] = await db.update(rulesTable).set({ status: "published" }).where(eq(rulesTable.id, params.data.id)).returning();
+  // Compile structured conditions on publish for fast engine evaluation
+  const compiledConditions = compileRuleConditions(existing.structuredRepresentation);
+  const [row] = await db
+    .update(rulesTable)
+    .set({ status: "published", compiledConditions: compiledConditions.length > 0 ? compiledConditions : null })
+    .where(eq(rulesTable.id, params.data.id))
+    .returning();
   if (!row) {
     res.status(404).json({ error: "Rule not found" });
     return;

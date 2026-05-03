@@ -543,6 +543,37 @@ export const SimulateRuleBody = zod.object({
 });
 
 /**
+ * @summary Evaluate a governance query against a policy's published rules and record the decision
+ */
+export const EvaluateDecisionParams = zod.object({
+  policyId: zod.number().describe("ID of the published policy to evaluate against"),
+  actor: zod.string().describe("Who is making the request (e.g. email, user ID)"),
+  action: zod.string().describe("What action they are attempting (e.g. submit_expense)"),
+  context: zod.record(zod.unknown()).optional().describe("Key-value pairs of context fields"),
+  scenario: zod.string().optional().describe("Optional plain-language description of the scenario"),
+});
+
+/**
+ * @summary List decisions with optional filters
+ */
+export const ListDecisionsQueryParams = zod.object({
+  policyId: zod.coerce.number().nullish(),
+  outcome: zod.enum(["approved", "denied", "escalated", "needs_review"]).nullish(),
+  actor: zod.string().nullish(),
+  dateFrom: zod.string().nullish(),
+  dateTo: zod.string().nullish(),
+  page: zod.coerce.number().nullish(),
+  limit: zod.coerce.number().nullish(),
+});
+
+/**
+ * @summary Get a decision with full reasoning chain
+ */
+export const GetDecisionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Diff two versions of a rule
  */
 export const GetRuleVersionDiffParams = zod.object({

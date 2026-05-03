@@ -19,6 +19,16 @@ This workspace hosts **Executable Governance** — a governance-as-code platform
 - Enums: `policy_status` (draft/published/archived), `rule_status` (draft/published/archived), `rule_outcome` (approved/denied/escalated/needs_review)
 - Rule version increments on changes to `naturalLanguageText`, `outcome`, or `structuredRepresentation`; create + version insert run inside a single DB transaction.
 
+## Decision Runtime + Audit Trail (Task #3)
+
+- **Decision evaluation** (`POST /api/decisions/evaluate`): Submits a query (actor, action, context, policy, scenario) against all published rules for a policy. Rules are evaluated in priority order; conditions are compiled from `compiledConditions` (if stored) or `structuredRepresentation` (runtime fallback). On no match, falls back to `needs_review`. AI generates a plain-English explanation. Every evaluation is persisted to the `decisions` table (immutable audit log).
+- **Audit log** (`GET /api/decisions`, `GET /api/decisions/:id`): Paginated, filterable (policyId, outcome, actor) decision history. Detail endpoint returns full reasoning chain: rules applied, match status per rule, context, explanation.
+- **Playground** (`/playground`): Interactive form to submit a scenario — select policy, enter actor/action/context JSON, describe scenario, see live decision + AI explanation + rules applied.
+- **Decisions page** (`/decisions`): Paginated audit log table with policy / outcome / actor filters, clickable rows link to detail.
+- **Decision detail** (`/decisions/:id`): Full reasoning card — outcome badge, request metadata, query context key-value, AI explanation, rules applied table.
+- **Compile-on-publish hook**: `compileRuleConditions()` runs when a rule is published, storing conditions in `compiledConditions` JSONB on the rule for fast evaluation.
+- **DB tables added**: `decisions` (id, organizationId, policyId, actor, action, outcome, confidence, context, rulesApplied, reason, explanation, scenario, createdAt). `compiledConditions` JSONB column added to `rules`.
+
 ## AI Features (Task #2)
 
 - **Rule Analysis** (`POST /api/rules/:id/analyze`): Streams SSE analysis via GPT-5.4. Returns ambiguities, edge cases, and conflicts with existing sibling rules. Frontend `RuleAnalysisPanel` handles streaming, shows three card sections, each with "Accept suggestion" actions that persist to `resolvedAmbiguities`/`resolvedEdgeCases` fields.

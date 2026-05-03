@@ -24,12 +24,17 @@ import type {
   CreatePolicyBody,
   CreateRuleBody,
   CreateUserBody,
+  DecisionDetail,
+  DecisionList,
+  DecisionResult,
   ErrorResponse,
+  EvaluateDecisionBody,
   GetAnalyticsSummaryParams,
   GetPolicyBreakdownParams,
   GetRecentActivityParams,
   GetRuleVersionDiffParams,
   HealthStatus,
+  ListDecisionsParams,
   ListPoliciesParams,
   ListRulesParams,
   ListUsersParams,
@@ -2766,5 +2771,164 @@ export function useGetPolicyBreakdown<
     queryKey: QueryKey;
   };
 
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+// ─── Decisions ────────────────────────────────────────────────────────────────
+
+export const getEvaluateDecisionUrl = () => `/api/decisions/evaluate`;
+
+export const evaluateDecision = async (
+  evaluateDecisionBody: BodyType<EvaluateDecisionBody>,
+  options?: RequestInit,
+): Promise<DecisionResult> => {
+  return customFetch<DecisionResult>(getEvaluateDecisionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(evaluateDecisionBody),
+  });
+};
+
+export const useEvaluateDecision = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof evaluateDecision>>,
+    TError,
+    { data: BodyType<EvaluateDecisionBody> },
+    TContext
+  >;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof evaluateDecision>>,
+  TError,
+  { data: BodyType<EvaluateDecisionBody> },
+  TContext
+> => {
+  const { mutation: mutationOptions } = options ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof evaluateDecision>>,
+    { data: BodyType<EvaluateDecisionBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+    return evaluateDecision(data);
+  };
+  return useMutation<
+    Awaited<ReturnType<typeof evaluateDecision>>,
+    TError,
+    { data: BodyType<EvaluateDecisionBody> },
+    TContext
+  >({ mutationFn, ...mutationOptions });
+};
+
+export const getListDecisionsUrl = (params?: ListDecisionsParams) => {
+  const normalizedParams = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      normalizedParams.append(key, value.toString());
+    }
+  });
+  const stringifiedParams = normalizedParams.toString();
+  return stringifiedParams.length > 0 ? `/api/decisions?${stringifiedParams}` : `/api/decisions`;
+};
+
+export const listDecisions = async (
+  params?: ListDecisionsParams,
+  options?: RequestInit,
+): Promise<DecisionList> => {
+  return customFetch<DecisionList>(getListDecisionsUrl(params), { ...options, method: "GET" });
+};
+
+export const getListDecisionsQueryKey = (params?: ListDecisionsParams) =>
+  [getListDecisionsUrl(params)] as const;
+
+export const getListDecisionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDecisions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListDecisionsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof listDecisions>>, TError, TData>;
+    request?: RequestInit;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getListDecisionsQueryKey(params);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDecisions>>> = ({ signal }) =>
+    listDecisions(params, { ...requestOptions, signal });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDecisions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListDecisionsQueryResult = NonNullable<Awaited<ReturnType<typeof listDecisions>>>;
+export type ListDecisionsQueryError = ErrorType<unknown>;
+
+export function useListDecisions<
+  TData = Awaited<ReturnType<typeof listDecisions>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListDecisionsParams,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof listDecisions>>, TError, TData>;
+    request?: RequestInit;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListDecisionsQueryOptions(params, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetDecisionUrl = (id: number) => `/api/decisions/${id}`;
+
+export const getDecision = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DecisionDetail> => {
+  return customFetch<DecisionDetail>(getGetDecisionUrl(id), { ...options, method: "GET" });
+};
+
+export const getGetDecisionQueryKey = (id: number) =>
+  [getGetDecisionUrl(id)] as const;
+
+export const getGetDecisionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDecision>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getDecision>>, TError, TData>;
+    request?: RequestInit;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetDecisionQueryKey(id);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDecision>>> = ({ signal }) =>
+    getDecision(id, { ...requestOptions, signal });
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDecision>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDecisionQueryResult = NonNullable<Awaited<ReturnType<typeof getDecision>>>;
+export type GetDecisionQueryError = ErrorType<unknown>;
+
+export function useGetDecision<
+  TData = Awaited<ReturnType<typeof getDecision>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getDecision>>, TError, TData>;
+    request?: RequestInit;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDecisionQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
   return { ...query, queryKey: queryOptions.queryKey };
 }

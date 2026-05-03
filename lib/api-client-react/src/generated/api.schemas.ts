@@ -521,3 +521,87 @@ export type GetPolicyBreakdownParams = {
    */
   organizationId?: number | null;
 };
+
+export interface EvaluateDecisionBody {
+  /** ID of the published policy to evaluate against */
+  policyId: number;
+  /** Who is making the request (e.g. email, user ID) */
+  actor: string;
+  /** What action they are attempting (e.g. submit_expense) */
+  action: string;
+  /** Key-value pairs of context fields */
+  context?: Record<string, unknown>;
+  /** Optional plain-language description of the scenario */
+  scenario?: string;
+}
+
+export interface RuleRef {
+  ruleId: number;
+  name: string;
+  priority: number;
+  outcome: RuleOutcome;
+  matched: boolean;
+}
+
+export interface DecisionResult {
+  id: number;
+  decision: RuleOutcome;
+  reason: string;
+  rulesApplied: RuleRef[];
+  /** 0-100 confidence score */
+  confidence: number;
+  explanation?: string;
+  policyId: number;
+  policyName: string;
+  createdAt: string;
+}
+
+export interface DecisionSummary {
+  id: number;
+  /** @nullable */
+  organizationId?: number | null;
+  /** @nullable */
+  policyId?: number | null;
+  actor: string;
+  action: string;
+  outcome: RuleOutcome;
+  confidence: number;
+  /** @nullable */
+  scenario?: string | null;
+  createdAt: string;
+  /** @nullable */
+  policyName?: string | null;
+  /** @nullable */
+  organizationName?: string | null;
+}
+
+export interface DecisionDetail extends DecisionSummary {
+  contextJson: Record<string, unknown>;
+  rulesAppliedJson: Record<string, unknown>[];
+  /** @nullable */
+  explanation?: string | null;
+}
+
+export interface DecisionList {
+  decisions: DecisionSummary[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export type ListDecisionsParams = {
+  /** @nullable */
+  policyId?: number | null;
+  /** @nullable */
+  outcome?: RuleOutcome | null;
+  /** @nullable */
+  actor?: string | null;
+  /** @nullable */
+  dateFrom?: string | null;
+  /** @nullable */
+  dateTo?: string | null;
+  /** @nullable */
+  page?: number | null;
+  /** @nullable */
+  limit?: number | null;
+};

@@ -12,6 +12,9 @@ import { RuleDetailPage } from "@/pages/RuleDetailPage";
 import { NewRulePage } from "@/pages/NewRulePage";
 import { UsersPage } from "@/pages/UsersPage";
 import { OrganizationsPage } from "@/pages/OrganizationsPage";
+import { PlaygroundPage } from "@/pages/PlaygroundPage";
+import { DecisionsPage } from "@/pages/DecisionsPage";
+import { DecisionDetailPage } from "@/pages/DecisionDetailPage";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +30,9 @@ function Router() {
       <Route path="/rules/:id" component={RuleDetailPage} />
       <Route path="/users" component={UsersPage} />
       <Route path="/organizations" component={OrganizationsPage} />
+      <Route path="/playground" component={PlaygroundPage} />
+      <Route path="/decisions" component={DecisionsPage} />
+      <Route path="/decisions/:id" component={DecisionDetailPage} />
       <Route component={NotFound} />
     </Switch>
   );
