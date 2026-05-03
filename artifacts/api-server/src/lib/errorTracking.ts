@@ -59,14 +59,12 @@ export async function initErrorTracking(release?: string): Promise<void> {
     return;
   }
   try {
-    // Dynamic import so the @sentry/node dependency is optional. When the
-    // package is installed at deploy time, this call resolves and we wire
-    // the SDK in. When it isn't, we degrade gracefully to log-only.
-    // The @sentry/node package is intentionally optional; it isn't
-    // declared as a dep so dev installs stay slim. The cast + variable
-    // indirection keeps the dynamic import opaque to the TS module
-    // resolver — at runtime it succeeds when the SDK is present and
-    // returns null otherwise.
+    // Dynamic import so the SDK is loaded only when SENTRY_DSN is set —
+    // dev/test boots that don't configure Sentry pay no startup cost and
+    // the SDK's Node integrations stay dormant. @sentry/node is declared
+    // as a runtime dependency so the import resolves in production; the
+    // catch-to-null path is kept as a defensive fallback in case a
+    // deployment slims the install via --prod-only filters or similar.
     const sentryPkg = "@sentry/node";
     const mod = (await import(/* @vite-ignore */ sentryPkg).catch(
       () => null,

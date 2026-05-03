@@ -5,6 +5,14 @@
  * `/api/client-errors` sink so they end up in the same structured log /
  * Sentry pipeline as backend exceptions. Best-effort only — failures
  * here are swallowed to avoid recursive reporting loops.
+ *
+ * Source-map / frame symbolication: the API sink already receives the
+ * raw stack and a release tag. Production source maps are emitted by
+ * the Vite build (`build.sourcemap = true`) and should be uploaded as
+ * part of the deploy pipeline so the backend tracker can symbolicate
+ * frames on ingest. Adding `@sentry/browser` here later is a drop-in
+ * upgrade — replace the window/promise hooks with the SDK's and remove
+ * the duplicate POST.
  */
 
 const ENDPOINT = `${import.meta.env.BASE_URL}api/client-errors`;
