@@ -164,14 +164,23 @@ export function RuleAnalysisPanel({
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Optimistic local state — updated immediately on accept/override to prevent
-  // stale-closure races when multiple items are resolved before a DB refetch completes.
+  // Optimistic local state — updated immediately on accept/override and on done-event,
+  // preventing stale-closure races when items are accepted before a DB refetch completes.
   const [localAmbiguities, setLocalAmbiguities] = useState<AmbiguityItem[]>(resolvedAmbiguities);
   const [localEdgeCases, setLocalEdgeCases] = useState<EdgeCaseItem[]>(resolvedEdgeCases);
 
-  // Re-sync from DB whenever the server copy changes (e.g. after a successful mutation).
+  // Local working copy of structuredRepresentation — applies each accept cumulatively
+  // so rapid successive accepts don't overwrite each other's structural patches.
+  const [localStructured, setLocalStructured] = useState<Record<string, unknown>>(
+    (currentStructuredRepresentation as Record<string, unknown>) ?? {}
+  );
+
+  // Re-sync from DB when server data changes (after successful mutations).
   useEffect(() => { setLocalAmbiguities(resolvedAmbiguities); }, [resolvedAmbiguities]);
   useEffect(() => { setLocalEdgeCases(resolvedEdgeCases); }, [resolvedEdgeCases]);
+  useEffect(() => {
+    setLocalStructured((currentStructuredRepresentation as Record<string, unknown>) ?? {});
+  }, [currentStructuredRepresentation]);
 
   const update = useUpdateRule({ mutation: { onSuccess: onRefreshRule } });
 
@@ -224,11 +233,16 @@ export function RuleAnalysisPanel({
             const freshAnalysis = payload.analysis;
             onAnalysisComplete(freshAnalysis);
             setStreamText("");
+            // Seed local state immediately so accept actions work before the DB refetch lands.
+            const newAmbiguities = freshAnalysis.ambiguities.map((a) => ({ ...(a as AmbiguityItem), resolved: false }));
+            const newEdgeCases = freshAnalysis.edgeCases.map((e) => ({ ...(e as EdgeCaseItem), resolved: false }));
+            setLocalAmbiguities(newAmbiguities);
+            setLocalEdgeCases(newEdgeCases);
             update.mutate({
               id: ruleId,
               data: {
-                resolvedAmbiguities: freshAnalysis.ambiguities.map((a) => ({ ...a, resolved: false })) as unknown,
-                resolvedEdgeCases: freshAnalysis.edgeCases.map((e) => ({ ...e, resolved: false })) as unknown,
+                resolvedAmbiguities: newAmbiguities as unknown,
+                resolvedEdgeCases: newEdgeCases as unknown,
               },
             });
           } else if (payload.type === "error") {
@@ -245,34 +259,36 @@ export function RuleAnalysisPanel({
   };
 
   const resolveAmbiguity = (item: AmbiguityItem, overrideText?: string) => {
-    const { structuredUpdate } = applyStructuredUpdate(currentStructuredRepresentation, item, overrideText);
-    // Use localAmbiguities (not prop) to avoid stale-state race on rapid accepts
+    // Compute from localAmbiguities (not prop) to avoid stale-state race on rapid accepts.
+    const { structuredUpdate } = applyStructuredUpdate(localStructured, item, overrideText);
     const updatedList = localAmbiguities.map((r) =>
       r.id === item.id ? { ...r, resolved: true, ...(overrideText ? { suggestedResolution: overrideText } : {}) } : r
     );
-    setLocalAmbiguities(updatedList); // optimistic UI update
+    setLocalAmbiguities(updatedList);
     const updates: Parameters<typeof update.mutate>[0]["data"] = {
       resolvedAmbiguities: updatedList as unknown,
     };
     if (structuredUpdate && Object.keys(structuredUpdate).length > 0) {
-      const merged = { ...(currentStructuredRepresentation as Record<string, unknown> ?? {}), ...structuredUpdate };
+      const merged = { ...localStructured, ...structuredUpdate };
+      setLocalStructured(merged); // cumulative local patch so next accept sees prior updates
       updates.structuredRepresentation = merged as unknown;
     }
     update.mutate({ id: ruleId, data: updates });
   };
 
   const resolveEdgeCase = (item: EdgeCaseItem, overrideText?: string) => {
-    const { structuredUpdate } = applyStructuredUpdate(currentStructuredRepresentation, item, overrideText);
-    // Use localEdgeCases (not prop) to avoid stale-state race on rapid accepts
+    // Compute from localEdgeCases (not prop) to avoid stale-state race on rapid accepts.
+    const { structuredUpdate } = applyStructuredUpdate(localStructured, item, overrideText);
     const updatedList = localEdgeCases.map((r) =>
       r.id === item.id ? { ...r, resolved: true, ...(overrideText ? { suggestedBehavior: overrideText } : {}) } : r
     );
-    setLocalEdgeCases(updatedList); // optimistic UI update
+    setLocalEdgeCases(updatedList);
     const updates: Parameters<typeof update.mutate>[0]["data"] = {
       resolvedEdgeCases: updatedList as unknown,
     };
     if (structuredUpdate && Object.keys(structuredUpdate).length > 0) {
-      const merged = { ...(currentStructuredRepresentation as Record<string, unknown> ?? {}), ...structuredUpdate };
+      const merged = { ...localStructured, ...structuredUpdate };
+      setLocalStructured(merged); // cumulative local patch so next accept sees prior updates
       updates.structuredRepresentation = merged as unknown;
     }
     update.mutate({ id: ruleId, data: updates });
