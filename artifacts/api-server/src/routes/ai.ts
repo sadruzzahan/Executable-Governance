@@ -160,6 +160,7 @@ ${siblingContext}`;
     const stream = await openai.chat.completions.create({
       model: "gpt-5.4",
       max_completion_tokens: 4096,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
@@ -177,9 +178,15 @@ ${siblingContext}`;
 
     let aiAnalysis: { ambiguities: unknown[]; edgeCases: unknown[]; conflicts: unknown[] } = { ambiguities: [], edgeCases: [], conflicts: [] };
     try {
-      const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-      aiAnalysis = JSON.parse(jsonMatch ? jsonMatch[0] : fullResponse) as typeof aiAnalysis;
-    } catch { /* keep empty defaults */ }
+      const parsed = JSON.parse(fullResponse) as Record<string, unknown>;
+      if (Array.isArray(parsed.ambiguities)) aiAnalysis.ambiguities = parsed.ambiguities;
+      if (Array.isArray(parsed.edgeCases)) aiAnalysis.edgeCases = parsed.edgeCases;
+      if (Array.isArray(parsed.conflicts)) aiAnalysis.conflicts = parsed.conflicts;
+    } catch {
+      res.write(`data: ${JSON.stringify({ type: "error", error: "Model returned malformed JSON" })}\n\n`);
+      res.end();
+      return;
+    }
 
     const mergedConflicts = [
       ...serverConflicts,
@@ -187,8 +194,8 @@ ${siblingContext}`;
     ];
 
     const finalAnalysis = {
-      ambiguities: aiAnalysis.ambiguities ?? [],
-      edgeCases: aiAnalysis.edgeCases ?? [],
+      ambiguities: aiAnalysis.ambiguities,
+      edgeCases: aiAnalysis.edgeCases,
       conflicts: mergedConflicts,
     };
 

@@ -211,10 +211,12 @@ export interface AmbiguityItem {
   /** AI-suggested resolution */
   suggestedResolution: string;
   /**
-   * Which structured field this resolution maps to
+   * Which structured field this resolution maps to (kind, field, operator, value, currency, scope)
    * @nullable
    */
   field?: string | null;
+  /** Partial JSON patch to apply to structuredRepresentation when this suggestion is accepted */
+  structuredUpdate?: unknown | null;
   resolved: boolean;
 }
 
@@ -224,8 +226,13 @@ export interface EdgeCaseItem {
   scenario: string;
   /** AI-suggested default behavior */
   suggestedBehavior: string;
-  /** @nullable */
+  /**
+   * Which structured field this suggestion maps to
+   * @nullable
+   */
   field?: string | null;
+  /** Partial JSON patch to apply to structuredRepresentation when this suggestion is accepted */
+  structuredUpdate?: unknown | null;
   resolved: boolean;
 }
 

@@ -1060,7 +1060,10 @@ components:
           description: "AI-suggested resolution"
         field:
           type: ["string", "null"]
-          description: "Which structured field this resolution maps to"
+          description: "Which structured field this resolution maps to (kind, field, operator, value, currency, scope)"
+        structuredUpdate:
+          description: "Partial JSON patch to apply to structuredRepresentation when this suggestion is accepted"
+          nullable: true
         resolved:
           type: boolean
       required:
@@ -1082,6 +1085,10 @@ components:
           description: "AI-suggested default behavior"
         field:
           type: ["string", "null"]
+          description: "Which structured field this suggestion maps to"
+        structuredUpdate:
+          description: "Partial JSON patch to apply to structuredRepresentation when this suggestion is accepted"
+          nullable: true
         resolved:
           type: boolean
       required:
