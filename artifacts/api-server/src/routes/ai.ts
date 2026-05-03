@@ -74,6 +74,8 @@ function detectServerConflicts(
     });
 }
 
+// SSE streaming endpoint — response is text/event-stream with {type:"chunk"|"done"|"error"} events.
+// Consume on the client via raw fetch + ReadableStream; the generated orval hook is not suitable for SSE.
 router.post("/rules/:id/analyze", async (req, res): Promise<void> => {
   const params = AnalyzeRuleParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -208,6 +210,8 @@ ${siblingContext}`;
   }
 });
 
+// SSE streaming endpoint — response is text/event-stream with {type:"chunk"|"done"|"error"} events.
+// Consume on the client via raw fetch + ReadableStream; the generated orval hook is not suitable for SSE.
 router.post("/rules/:id/simulate", async (req, res): Promise<void> => {
   const params = SimulateRuleParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }

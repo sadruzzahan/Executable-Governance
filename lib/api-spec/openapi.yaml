@@ -459,7 +459,7 @@ paths:
     post:
       operationId: analyzeRule
       tags: [rules]
-      summary: Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE)
+      summary: Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE — consume via raw fetch, not generated hook)
       parameters:
         - name: id
           in: path
@@ -490,7 +490,7 @@ paths:
     post:
       operationId: simulateRule
       tags: [rules]
-      summary: Simulate how a rule would decide a given scenario
+      summary: Simulate how a rule would decide a given scenario (streaming SSE — consume via raw fetch, not generated hook)
       parameters:
         - name: id
           in: path

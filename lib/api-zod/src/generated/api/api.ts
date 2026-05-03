@@ -515,7 +515,7 @@ export const GetRuleVersionsResponseItem = zod.object({
 export const GetRuleVersionsResponse = zod.array(GetRuleVersionsResponseItem);
 
 /**
- * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE)
+ * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE — consume via raw fetch, not generated hook)
  */
 export const AnalyzeRuleParams = zod.object({
   id: zod.coerce.number(),
@@ -526,7 +526,7 @@ export const AnalyzeRuleBody = zod.object({
 });
 
 /**
- * @summary Simulate how a rule would decide a given scenario
+ * @summary Simulate how a rule would decide a given scenario (streaming SSE — consume via raw fetch, not generated hook)
  */
 export const SimulateRuleParams = zod.object({
   id: zod.coerce.number(),

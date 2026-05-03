@@ -1758,7 +1758,7 @@ export function useGetRuleVersions<
 }
 
 /**
- * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE)
+ * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE — consume via raw fetch, not generated hook)
  */
 export const getAnalyzeRuleUrl = (id: number) => {
   return `/api/rules/${id}/analyze`;
@@ -1822,7 +1822,7 @@ export type AnalyzeRuleMutationBody = BodyType<AnalyzeRuleBody>;
 export type AnalyzeRuleMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE)
+ * @summary Analyze a rule for ambiguities, edge cases, and conflicts (streaming SSE — consume via raw fetch, not generated hook)
  */
 export const useAnalyzeRule = <
   TError = ErrorType<ErrorResponse>,
@@ -1845,7 +1845,7 @@ export const useAnalyzeRule = <
 };
 
 /**
- * @summary Simulate how a rule would decide a given scenario
+ * @summary Simulate how a rule would decide a given scenario (streaming SSE — consume via raw fetch, not generated hook)
  */
 export const getSimulateRuleUrl = (id: number) => {
   return `/api/rules/${id}/simulate`;
@@ -1909,7 +1909,7 @@ export type SimulateRuleMutationBody = BodyType<SimulateRuleBody>;
 export type SimulateRuleMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Simulate how a rule would decide a given scenario
+ * @summary Simulate how a rule would decide a given scenario (streaming SSE — consume via raw fetch, not generated hook)
  */
 export const useSimulateRule = <
   TError = ErrorType<ErrorResponse>,
