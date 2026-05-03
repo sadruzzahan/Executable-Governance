@@ -29,7 +29,7 @@ export interface ConflictItem {
   conflictingRuleId: number;
   conflictingRuleName: string;
   description: string;
-  severity: "low" | "medium" | "high";
+  severity: "low" | "medium" | "high" | "critical";
 }
 
 export interface RuleAnalysis {
@@ -52,6 +52,7 @@ interface Props {
 }
 
 const SEVERITY_COLORS = {
+  critical: "bg-red-700/15 text-red-800 dark:text-red-200 border-red-700/30",
   high: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20",
   medium: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
   low: "bg-sky-500/10 text-sky-600 dark:text-sky-300 border-sky-500/20",

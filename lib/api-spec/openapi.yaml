@@ -1044,6 +1044,9 @@ components:
         scenario:
           type: string
           description: "Plain-language scenario description to simulate"
+        ruleText:
+          type: string
+          description: "Optional override rule text to simulate against (e.g. an unsaved draft). Defaults to the saved rule text when omitted."
       required:
         - scenario
 
@@ -1111,7 +1114,7 @@ components:
           description: "Explanation of the logical conflict"
         severity:
           type: string
-          enum: [low, medium, high]
+          enum: [low, medium, high, critical]
       required:
         - id
         - conflictingRuleId
