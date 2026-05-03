@@ -231,7 +231,25 @@ router.post("/auth/reset-password", async (req, res) => {
   }
 
   const newHash = await hashPassword(parsed.data.newPassword);
-  await db.transaction(async (tx) => {
+  // Atomic single-use consume: the conditional UPDATE re-checks the
+  // single-use + not-expired predicates inside the same statement so two
+  // concurrent requests cannot both pass and both reset the password.
+  // Only the request that wins the row update proceeds to set the new
+  // password; the loser sees consumed=null and gets the same invalid-
+  // token error a stale link would.
+  const consumed = await db.transaction(async (tx) => {
+    const [claimed] = await tx
+      .update(passwordResetTokensTable)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(passwordResetTokensTable.id, row.id),
+          isNull(passwordResetTokensTable.usedAt),
+          gt(passwordResetTokensTable.expiresAt, new Date()),
+        ),
+      )
+      .returning({ id: passwordResetTokensTable.id });
+    if (!claimed) return null;
     await tx
       .insert(userPasswordsTable)
       .values({ userId: row.userId, hash: newHash })
@@ -239,11 +257,16 @@ router.post("/auth/reset-password", async (req, res) => {
         target: userPasswordsTable.userId,
         set: { hash: newHash, updatedAt: new Date() },
       });
-    await tx
-      .update(passwordResetTokensTable)
-      .set({ usedAt: new Date() })
-      .where(eq(passwordResetTokensTable.id, row.id));
+    return claimed;
   });
+  if (!consumed) {
+    res.status(400).json({
+      error: "invalid_token",
+      message: "Reset link is invalid or has expired.",
+      requestId: req.requestId,
+    });
+    return;
+  }
   // Reset always invalidates every existing session for the user.
   await revokeAllSessions(row.userId);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, row.userId));
@@ -282,7 +305,20 @@ router.post("/auth/verify-email", async (req, res) => {
     });
     return;
   }
-  await db.transaction(async (tx) => {
+  // Atomic single-use consume — see /auth/reset-password for rationale.
+  const consumed = await db.transaction(async (tx) => {
+    const [claimed] = await tx
+      .update(emailVerificationTokensTable)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(emailVerificationTokensTable.id, row.id),
+          isNull(emailVerificationTokensTable.usedAt),
+          gt(emailVerificationTokensTable.expiresAt, new Date()),
+        ),
+      )
+      .returning({ id: emailVerificationTokensTable.id });
+    if (!claimed) return null;
     if (row.pendingEmail) {
       await tx
         .update(usersTable)
@@ -294,11 +330,16 @@ router.post("/auth/verify-email", async (req, res) => {
         .set({ emailVerifiedAt: new Date() })
         .where(eq(usersTable.id, row.userId));
     }
-    await tx
-      .update(emailVerificationTokensTable)
-      .set({ usedAt: new Date() })
-      .where(eq(emailVerificationTokensTable.id, row.id));
+    return claimed;
   });
+  if (!consumed) {
+    res.status(400).json({
+      error: "invalid_token",
+      message: "Verification link is invalid or has expired.",
+      requestId: req.requestId,
+    });
+    return;
+  }
   res.json({ ok: true });
 });
 
