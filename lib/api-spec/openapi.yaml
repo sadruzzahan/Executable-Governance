@@ -836,6 +836,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/PolicyBreakdown"
 
+  /analytics/decision-volume:
+    get:
+      operationId: getDecisionVolume
+      tags: [analytics]
+      summary: Get daily decision counts by outcome for the last 30 days
+      responses:
+        "200":
+          description: Decision volume time series
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionVolume"
+
+  /analytics/top-rules:
+    get:
+      operationId: getTopRules
+      tags: [analytics]
+      summary: Get top 5 most-triggered rules in the last 30 days
+      responses:
+        "200":
+          description: Top triggered rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopRules"
+
+  /analytics/coverage-gaps:
+    get:
+      operationId: getCoverageGaps
+      tags: [analytics]
+      summary: Get policies with coverage gaps (few rules or high exception rate)
+      responses:
+        "200":
+          description: Coverage gap list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoverageGaps"
+
+  /analytics/rule-health:
+    get:
+      operationId: getRuleHealth
+      tags: [analytics]
+      summary: Get published rules ranked by unresolved ambiguities and edge cases
+      responses:
+        "200":
+          description: Rule health list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuleHealth"
+
 components:
   schemas:
     HealthStatus:
@@ -1611,3 +1663,160 @@ components:
         - totalPolicies
         - byStatus
         - byDomain
+
+    DecisionVolumeDay:
+      type: object
+      properties:
+        date:
+          type: string
+        approved:
+          type: integer
+        denied:
+          type: integer
+        escalated:
+          type: integer
+        needs_review:
+          type: integer
+        total:
+          type: integer
+      required:
+        - date
+        - approved
+        - denied
+        - escalated
+        - needs_review
+        - total
+
+    DecisionVolume:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DecisionVolumeDay"
+        total:
+          type: integer
+      required:
+        - days
+        - total
+
+    TopRuleItem:
+      type: object
+      properties:
+        ruleId:
+          type: integer
+        ruleName:
+          type: string
+        policyId:
+          type: integer
+        policyName:
+          type: string
+        triggerCount:
+          type: integer
+        evalCount:
+          type: integer
+        approvedCount:
+          type: integer
+        deniedCount:
+          type: integer
+        escalatedCount:
+          type: integer
+        needsReviewCount:
+          type: integer
+      required:
+        - ruleId
+        - ruleName
+        - policyId
+        - policyName
+        - triggerCount
+        - evalCount
+        - approvedCount
+        - deniedCount
+        - escalatedCount
+        - needsReviewCount
+
+    TopRules:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopRuleItem"
+      required:
+        - rules
+
+    CoverageGapItem:
+      type: object
+      properties:
+        policyId:
+          type: integer
+        policyName:
+          type: string
+        organizationName:
+          type: string
+        publishedRuleCount:
+          type: integer
+        needsReviewCount7d:
+          type: integer
+        gapReason:
+          type: string
+          enum: [few_rules, high_exceptions, both]
+      required:
+        - policyId
+        - policyName
+        - organizationName
+        - publishedRuleCount
+        - needsReviewCount7d
+        - gapReason
+
+    CoverageGaps:
+      type: object
+      properties:
+        gaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoverageGapItem"
+      required:
+        - gaps
+
+    RuleHealthItem:
+      type: object
+      properties:
+        ruleId:
+          type: integer
+        ruleName:
+          type: string
+        policyId:
+          type: integer
+        policyName:
+          type: string
+        unresolvedAmbiguities:
+          type: integer
+        unresolvedEdgeCases:
+          type: integer
+        totalAmbiguities:
+          type: integer
+        totalEdgeCases:
+          type: integer
+        healthScore:
+          type: integer
+      required:
+        - ruleId
+        - ruleName
+        - policyId
+        - policyName
+        - unresolvedAmbiguities
+        - unresolvedEdgeCases
+        - totalAmbiguities
+        - totalEdgeCases
+        - healthScore
+
+    RuleHealth:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleHealthItem"
+      required:
+        - rules

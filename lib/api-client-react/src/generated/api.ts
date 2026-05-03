@@ -20,6 +20,7 @@ import type {
   ActivityItem,
   AnalyticsSummary,
   AnalyzeRuleBody,
+  CoverageGaps,
   CreateOrganizationBody,
   CreatePolicyBody,
   CreateRuleBody,
@@ -27,6 +28,7 @@ import type {
   DecisionDetail,
   DecisionList,
   DecisionResult,
+  DecisionVolume,
   ErrorResponse,
   EvaluateDecisionBody,
   GetAnalyticsSummaryParams,
@@ -44,10 +46,12 @@ import type {
   PolicyWithRules,
   PolicyWithStats,
   Rule,
+  RuleHealth,
   RuleVersion,
   RuleVersionDiff,
   RuleWithVersions,
   SimulateRuleBody,
+  TopRules,
   UpdateOrganizationBody,
   UpdatePolicyBody,
   UpdateRuleBody,
@@ -2929,6 +2933,166 @@ export function useGetDecision<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetDecisionQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+// ─── Analytics: Decision Volume ───────────────────────────────────────────────
+
+export const getGetDecisionVolumeUrl = () => `/api/analytics/decision-volume`;
+
+export const getDecisionVolume = async (options?: RequestInit): Promise<DecisionVolume> =>
+  customFetch<DecisionVolume>(getGetDecisionVolumeUrl(), { ...options, method: "GET" });
+
+export const getGetDecisionVolumeQueryKey = () => [getGetDecisionVolumeUrl()] as const;
+
+export const getGetDecisionVolumeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDecisionVolume>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getDecisionVolume>>, TError, TData>;
+  request?: RequestInit;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetDecisionVolumeQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDecisionVolume>>> = ({ signal }) =>
+    getDecisionVolume({ ...requestOptions, signal });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDecisionVolume>>, TError, TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDecisionVolumeQueryResult = NonNullable<Awaited<ReturnType<typeof getDecisionVolume>>>;
+export type GetDecisionVolumeQueryError = ErrorType<unknown>;
+
+export function useGetDecisionVolume<
+  TData = Awaited<ReturnType<typeof getDecisionVolume>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getDecisionVolume>>, TError, TData>;
+  request?: RequestInit;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDecisionVolumeQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+// ─── Analytics: Top Rules ─────────────────────────────────────────────────────
+
+export const getGetTopRulesUrl = () => `/api/analytics/top-rules`;
+
+export const getTopRules = async (options?: RequestInit): Promise<TopRules> =>
+  customFetch<TopRules>(getGetTopRulesUrl(), { ...options, method: "GET" });
+
+export const getGetTopRulesQueryKey = () => [getGetTopRulesUrl()] as const;
+
+export const getGetTopRulesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTopRules>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getTopRules>>, TError, TData>;
+  request?: RequestInit;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetTopRulesQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTopRules>>> = ({ signal }) =>
+    getTopRules({ ...requestOptions, signal });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTopRules>>, TError, TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTopRulesQueryResult = NonNullable<Awaited<ReturnType<typeof getTopRules>>>;
+export type GetTopRulesQueryError = ErrorType<unknown>;
+
+export function useGetTopRules<
+  TData = Awaited<ReturnType<typeof getTopRules>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getTopRules>>, TError, TData>;
+  request?: RequestInit;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTopRulesQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+// ─── Analytics: Coverage Gaps ─────────────────────────────────────────────────
+
+export const getGetCoverageGapsUrl = () => `/api/analytics/coverage-gaps`;
+
+export const getCoverageGaps = async (options?: RequestInit): Promise<CoverageGaps> =>
+  customFetch<CoverageGaps>(getGetCoverageGapsUrl(), { ...options, method: "GET" });
+
+export const getGetCoverageGapsQueryKey = () => [getGetCoverageGapsUrl()] as const;
+
+export const getGetCoverageGapsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCoverageGaps>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getCoverageGaps>>, TError, TData>;
+  request?: RequestInit;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetCoverageGapsQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCoverageGaps>>> = ({ signal }) =>
+    getCoverageGaps({ ...requestOptions, signal });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCoverageGaps>>, TError, TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCoverageGapsQueryResult = NonNullable<Awaited<ReturnType<typeof getCoverageGaps>>>;
+export type GetCoverageGapsQueryError = ErrorType<unknown>;
+
+export function useGetCoverageGaps<
+  TData = Awaited<ReturnType<typeof getCoverageGaps>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getCoverageGaps>>, TError, TData>;
+  request?: RequestInit;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCoverageGapsQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+// ─── Analytics: Rule Health ───────────────────────────────────────────────────
+
+export const getGetRuleHealthUrl = () => `/api/analytics/rule-health`;
+
+export const getRuleHealth = async (options?: RequestInit): Promise<RuleHealth> =>
+  customFetch<RuleHealth>(getGetRuleHealthUrl(), { ...options, method: "GET" });
+
+export const getGetRuleHealthQueryKey = () => [getGetRuleHealthUrl()] as const;
+
+export const getGetRuleHealthQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRuleHealth>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getRuleHealth>>, TError, TData>;
+  request?: RequestInit;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetRuleHealthQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRuleHealth>>> = ({ signal }) =>
+    getRuleHealth({ ...requestOptions, signal });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRuleHealth>>, TError, TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRuleHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getRuleHealth>>>;
+export type GetRuleHealthQueryError = ErrorType<unknown>;
+
+export function useGetRuleHealth<
+  TData = Awaited<ReturnType<typeof getRuleHealth>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getRuleHealth>>, TError, TData>;
+  request?: RequestInit;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRuleHealthQueryOptions(options);
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
   return { ...query, queryKey: queryOptions.queryKey };
 }

@@ -723,6 +723,9 @@ export const GetAnalyticsSummaryResponse = zod.object({
   publishedRules: zod.number(),
   draftRules: zod.number(),
   totalUsers: zod.number(),
+  decisionsLast30d: zod.number(),
+  approvalRate: zod.number(),
+  exceptionRate: zod.number(),
 });
 
 /**

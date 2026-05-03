@@ -384,6 +384,9 @@ export interface AnalyticsSummary {
   publishedRules: number;
   draftRules: number;
   totalUsers: number;
+  decisionsLast30d: number;
+  approvalRate: number;
+  exceptionRate: number;
 }
 
 export type ActivityItemType =
@@ -605,3 +608,65 @@ export type ListDecisionsParams = {
   /** @nullable */
   limit?: number | null;
 };
+
+export interface DecisionVolumeDay {
+  date: string;
+  approved: number;
+  denied: number;
+  escalated: number;
+  needs_review: number;
+  total: number;
+}
+
+export interface DecisionVolume {
+  days: DecisionVolumeDay[];
+  total: number;
+}
+
+export interface TopRuleItem {
+  ruleId: number;
+  ruleName: string;
+  policyId: number;
+  policyName: string;
+  triggerCount: number;
+  evalCount: number;
+  approvedCount: number;
+  deniedCount: number;
+  escalatedCount: number;
+  needsReviewCount: number;
+}
+
+export interface TopRules {
+  rules: TopRuleItem[];
+}
+
+export type CoverageGapReason = "few_rules" | "high_exceptions" | "both";
+
+export interface CoverageGapItem {
+  policyId: number;
+  policyName: string;
+  organizationName: string;
+  publishedRuleCount: number;
+  needsReviewCount7d: number;
+  gapReason: CoverageGapReason;
+}
+
+export interface CoverageGaps {
+  gaps: CoverageGapItem[];
+}
+
+export interface RuleHealthItem {
+  ruleId: number;
+  ruleName: string;
+  policyId: number;
+  policyName: string;
+  unresolvedAmbiguities: number;
+  unresolvedEdgeCases: number;
+  totalAmbiguities: number;
+  totalEdgeCases: number;
+  healthScore: number;
+}
+
+export interface RuleHealth {
+  rules: RuleHealthItem[];
+}
