@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useUpdateRule } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,9 @@ interface Props {
   currentStructuredRepresentation: unknown;
   analysis: RuleAnalysis | null;
   onAnalysisComplete: (analysis: RuleAnalysis) => void;
+  /** Persisted list from DB — used to initialise local state and re-sync after mutations. */
   resolvedAmbiguities: AmbiguityItem[];
+  /** Persisted list from DB — used to initialise local state and re-sync after mutations. */
   resolvedEdgeCases: EdgeCaseItem[];
   onRefreshRule: () => void;
 }
@@ -162,11 +164,20 @@ export function RuleAnalysisPanel({
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Optimistic local state — updated immediately on accept/override to prevent
+  // stale-closure races when multiple items are resolved before a DB refetch completes.
+  const [localAmbiguities, setLocalAmbiguities] = useState<AmbiguityItem[]>(resolvedAmbiguities);
+  const [localEdgeCases, setLocalEdgeCases] = useState<EdgeCaseItem[]>(resolvedEdgeCases);
+
+  // Re-sync from DB whenever the server copy changes (e.g. after a successful mutation).
+  useEffect(() => { setLocalAmbiguities(resolvedAmbiguities); }, [resolvedAmbiguities]);
+  useEffect(() => { setLocalEdgeCases(resolvedEdgeCases); }, [resolvedEdgeCases]);
+
   const update = useUpdateRule({ mutation: { onSuccess: onRefreshRule } });
 
   const isResolved = (type: "ambiguity" | "edge", id: string) => {
-    if (type === "ambiguity") return resolvedAmbiguities.some((r) => r.id === id && r.resolved);
-    return resolvedEdgeCases.some((r) => r.id === id && r.resolved);
+    if (type === "ambiguity") return localAmbiguities.some((r) => r.id === id && r.resolved);
+    return localEdgeCases.some((r) => r.id === id && r.resolved);
   };
 
   const handleAnalyze = async () => {
@@ -235,9 +246,11 @@ export function RuleAnalysisPanel({
 
   const resolveAmbiguity = (item: AmbiguityItem, overrideText?: string) => {
     const { structuredUpdate } = applyStructuredUpdate(currentStructuredRepresentation, item, overrideText);
-    const updatedList = resolvedAmbiguities.map((r) =>
+    // Use localAmbiguities (not prop) to avoid stale-state race on rapid accepts
+    const updatedList = localAmbiguities.map((r) =>
       r.id === item.id ? { ...r, resolved: true, ...(overrideText ? { suggestedResolution: overrideText } : {}) } : r
     );
+    setLocalAmbiguities(updatedList); // optimistic UI update
     const updates: Parameters<typeof update.mutate>[0]["data"] = {
       resolvedAmbiguities: updatedList as unknown,
     };
@@ -250,9 +263,11 @@ export function RuleAnalysisPanel({
 
   const resolveEdgeCase = (item: EdgeCaseItem, overrideText?: string) => {
     const { structuredUpdate } = applyStructuredUpdate(currentStructuredRepresentation, item, overrideText);
-    const updatedList = resolvedEdgeCases.map((r) =>
+    // Use localEdgeCases (not prop) to avoid stale-state race on rapid accepts
+    const updatedList = localEdgeCases.map((r) =>
       r.id === item.id ? { ...r, resolved: true, ...(overrideText ? { suggestedBehavior: overrideText } : {}) } : r
     );
+    setLocalEdgeCases(updatedList); // optimistic UI update
     const updates: Parameters<typeof update.mutate>[0]["data"] = {
       resolvedEdgeCases: updatedList as unknown,
     };
@@ -263,13 +278,13 @@ export function RuleAnalysisPanel({
     update.mutate({ id: ruleId, data: updates });
   };
 
-  const unresolvedAmbiguities = resolvedAmbiguities.filter((a) => !a.resolved);
-  const unresolvedEdgeCases = resolvedEdgeCases.filter((e) => !e.resolved);
+  const unresolvedAmbiguities = localAmbiguities.filter((a) => !a.resolved);
+  const unresolvedEdgeCases = localEdgeCases.filter((e) => !e.resolved);
   const totalUnresolved = unresolvedAmbiguities.length + unresolvedEdgeCases.length;
-  const hasAnalysis = analysis !== null || resolvedAmbiguities.length > 0 || resolvedEdgeCases.length > 0;
+  const hasAnalysis = analysis !== null || localAmbiguities.length > 0 || localEdgeCases.length > 0;
 
-  const displayAmbiguities = analysis?.ambiguities ?? resolvedAmbiguities;
-  const displayEdgeCases = analysis?.edgeCases ?? resolvedEdgeCases;
+  const displayAmbiguities = analysis?.ambiguities ?? localAmbiguities;
+  const displayEdgeCases = analysis?.edgeCases ?? localEdgeCases;
 
   return (
     <div className="space-y-4">
