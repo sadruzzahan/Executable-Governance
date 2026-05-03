@@ -266,18 +266,33 @@ decision must be one of: approved, denied, escalated, needs_review`;
       }
     }
 
-    let parsed: unknown = {
+    const VALID_DECISIONS = new Set(["approved", "denied", "escalated", "needs_review"]);
+    interface SimResult {
+      decision: "approved" | "denied" | "escalated" | "needs_review";
+      reasoning: string;
+      conditionsMet: string[];
+      conditionsNotMet: string[];
+    }
+    let result: SimResult = {
       decision: "needs_review",
       reasoning: "Could not parse decision. Please clarify the scenario.",
       conditionsMet: [],
       conditionsNotMet: [],
     };
     try {
-      const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : fullResponse);
+      const raw = JSON.parse(fullResponse) as Record<string, unknown>;
+      const decision = typeof raw.decision === "string" && VALID_DECISIONS.has(raw.decision)
+        ? (raw.decision as SimResult["decision"])
+        : "needs_review";
+      result = {
+        decision,
+        reasoning: typeof raw.reasoning === "string" ? raw.reasoning : result.reasoning,
+        conditionsMet: Array.isArray(raw.conditionsMet) ? (raw.conditionsMet as string[]).filter((s) => typeof s === "string") : [],
+        conditionsNotMet: Array.isArray(raw.conditionsNotMet) ? (raw.conditionsNotMet as string[]).filter((s) => typeof s === "string") : [],
+      };
     } catch { /* keep defaults */ }
 
-    res.write(`data: ${JSON.stringify({ type: "done", result: parsed })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: "done", result })}\n\n`);
     res.end();
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "AI simulation failed";

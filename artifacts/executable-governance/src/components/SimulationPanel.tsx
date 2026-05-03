@@ -94,7 +94,14 @@ export function SimulationPanel({ ruleId }: Props) {
           if (payload.type === "chunk" && payload.content) {
             setStreamText((t) => t + payload.content);
           } else if (payload.type === "done" && payload.result) {
-            setResult(payload.result);
+            // Defensively normalise fields that AI might omit
+            const r = payload.result;
+            setResult({
+              decision: r.decision ?? "needs_review",
+              reasoning: r.reasoning ?? "",
+              conditionsMet: Array.isArray(r.conditionsMet) ? r.conditionsMet : [],
+              conditionsNotMet: Array.isArray(r.conditionsNotMet) ? r.conditionsNotMet : [],
+            });
             setStreamText("");
           } else if (payload.type === "error") {
             setError(payload.error ?? "Simulation failed");
