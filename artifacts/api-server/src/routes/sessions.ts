@@ -13,7 +13,12 @@ import { z } from "zod";
 import { db, userSessionsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { send400 } from "../lib/validation";
-import { revokeSession, revokeAllOtherSessions } from "../lib/sessions";
+import {
+  revokeSession,
+  revokeAllOtherSessions,
+  revokeAllSessions,
+  clearSessionCookie,
+} from "../lib/sessions";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -61,6 +66,16 @@ router.delete("/account/sessions/:id", async (req, res) => {
 router.post("/account/sessions/revoke-others", async (req, res) => {
   const revoked = await revokeAllOtherSessions(req.user!.id, req.session!.id);
   res.json({ revoked });
+});
+
+// "Sign out everywhere", including the current session. This is the
+// nuclear option for credential-compromise scenarios: revoke every
+// active session for the user and clear the caller's own cookie so the
+// next request is unauthenticated.
+router.post("/account/sessions/revoke-all", async (req, res) => {
+  await revokeAllSessions(req.user!.id);
+  clearSessionCookie(res);
+  res.json({ ok: true });
 });
 
 export default router;

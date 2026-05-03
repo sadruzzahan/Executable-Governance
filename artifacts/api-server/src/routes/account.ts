@@ -207,9 +207,13 @@ router.delete("/account", requireVerifiedEmail, async (req, res) => {
   // downstream GDPR pipeline finishes the hard delete.
   const userId = req.user!.id;
   await db.transaction(async (tx) => {
+    // Tombstone the user row: deletedAt is the durable signal that
+    // /auth/login, /auth/forgot-password, and /auth/verify-email use to
+    // refuse this account before the GDPR pipeline finishes the
+    // hard-delete + data export downstream.
     await tx
       .update(usersTable)
-      .set({ emailVerifiedAt: null, name: "(deletion pending)" })
+      .set({ emailVerifiedAt: null, name: "(deletion pending)", deletedAt: new Date() })
       .where(eq(usersTable.id, userId));
     await tx.delete(userPasswordsTable).where(eq(userPasswordsTable.userId, userId));
     await tx.delete(mfaSecretsTable).where(eq(mfaSecretsTable.userId, userId));

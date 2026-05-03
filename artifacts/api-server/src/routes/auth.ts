@@ -65,7 +65,11 @@ router.post("/auth/login", async (req, res) => {
   // Always run a password verify to keep response timing constant whether
   // the user exists or not. This is a cheap defence against email enumeration.
   const ok = await verifyPassword(password, pwRow?.hash ?? PLACEHOLDER_HASH);
-  if (!user || !pwRow || !ok) {
+  // Tombstoned accounts: even if (somehow) credentials match, treat as
+  // if the user does not exist. Account-deletion already wipes the row
+  // out of user_passwords, so this is a defence-in-depth check that
+  // also covers the no-credentials-yet window.
+  if (!user || !pwRow || !ok || user.deletedAt) {
     res.status(401).json({
       error: "invalid_credentials",
       message: "Email or password is incorrect.",
@@ -86,23 +90,22 @@ router.post("/auth/login", async (req, res) => {
       mfaPassed = await verifyTotp(decryptSecret(mfa.secretEnc), totpCode);
     } else if (recoveryCode) {
       const codeHash = hashRecoveryCode(recoveryCode);
-      const [codeRow] = await db
-        .select()
-        .from(mfaRecoveryCodesTable)
+      // Atomic single-use consume: the conditional UPDATE guarantees a
+      // recovery code can only authenticate one concurrent login; the
+      // race-losing requests get a falsy claim and fall through to the
+      // mfa_required error branch below.
+      const [claim] = await db
+        .update(mfaRecoveryCodesTable)
+        .set({ usedAt: new Date() })
         .where(
           and(
             eq(mfaRecoveryCodesTable.userId, user.id),
             eq(mfaRecoveryCodesTable.codeHash, codeHash),
             isNull(mfaRecoveryCodesTable.usedAt),
           ),
-        );
-      if (codeRow) {
-        await db
-          .update(mfaRecoveryCodesTable)
-          .set({ usedAt: new Date() })
-          .where(eq(mfaRecoveryCodesTable.id, codeRow.id));
-        mfaPassed = true;
-      }
+        )
+        .returning({ id: mfaRecoveryCodesTable.id });
+      if (claim) mfaPassed = true;
     }
     if (!mfaPassed) {
       res.status(401).json({
@@ -163,7 +166,10 @@ router.post("/auth/forgot-password", async (req, res) => {
     .from(usersTable)
     .where(eq(usersTable.email, parsed.data.email));
   // Always 202 so a stranger cannot probe which addresses are registered.
-  if (user) {
+  // Tombstoned accounts are treated as non-existent: never mint a reset
+  // token for a deleted user — that's the resurrection vector that
+  // would let a deletion be undone before the GDPR pipeline finishes.
+  if (user && !user.deletedAt) {
     const { token, hash } = mintToken();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
     await db.insert(passwordResetTokensTable).values({
@@ -298,6 +304,20 @@ router.post("/auth/verify-email", async (req, res) => {
       ),
     );
   if (!row) {
+    res.status(400).json({
+      error: "invalid_token",
+      message: "Verification link is invalid or has expired.",
+      requestId: req.requestId,
+    });
+    return;
+  }
+  // Verifying or changing the email of a tombstoned account would
+  // resurrect contact with a deleted user — refuse.
+  const [tombstoneCheck] = await db
+    .select({ deletedAt: usersTable.deletedAt })
+    .from(usersTable)
+    .where(eq(usersTable.id, row.userId));
+  if (tombstoneCheck?.deletedAt) {
     res.status(400).json({
       error: "invalid_token",
       message: "Verification link is invalid or has expired.",

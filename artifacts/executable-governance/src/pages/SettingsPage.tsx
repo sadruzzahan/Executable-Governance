@@ -23,6 +23,7 @@ import {
   useSessions,
   useRevokeSession,
   useRevokeOtherSessions,
+  useRevokeAllSessions,
   useDeleteAccount,
   useOrgSecurity,
   useUpdateOrgSecurity,
@@ -421,6 +422,8 @@ function SessionsTab() {
   const list = useSessions();
   const revoke = useRevokeSession();
   const revokeOthers = useRevokeOtherSessions();
+  const revokeAll = useRevokeAllSessions();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   return (
@@ -432,17 +435,32 @@ function SessionsTab() {
             Devices currently signed in to your account.
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={async () => {
-            const r = await revokeOthers.mutateAsync();
-            toast({ title: r.revoked > 0 ? `${r.revoked} other session(s) revoked` : "No other sessions to revoke" });
-          }}
-          disabled={revokeOthers.isPending}
-          data-testid="revoke-others"
-        >
-          Sign out everywhere else
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const r = await revokeOthers.mutateAsync();
+              toast({ title: r.revoked > 0 ? `${r.revoked} other session(s) revoked` : "No other sessions to revoke" });
+            }}
+            disabled={revokeOthers.isPending}
+            data-testid="revoke-others"
+          >
+            Sign out everywhere else
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              if (!window.confirm("Sign out of every device, including this one?")) return;
+              await revokeAll.mutateAsync();
+              toast({ title: "Signed out of all devices" });
+              setLocation("/login");
+            }}
+            disabled={revokeAll.isPending}
+            data-testid="revoke-all"
+          >
+            Sign out everywhere
+          </Button>
+        </div>
       </div>
       <div className="space-y-3" data-testid="sessions-list">
         {(list.data ?? []).map((s: SessionRow) => (

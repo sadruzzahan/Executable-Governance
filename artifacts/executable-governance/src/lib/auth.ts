@@ -234,6 +234,16 @@ export function useRevokeOtherSessions() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["account", "sessions"] }),
   });
 }
+export function useRevokeAllSessions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ ok: true }>("/account/sessions/revoke-all", { method: "POST" }),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ["auth", "me"] });
+      qc.removeQueries({ queryKey: ["account", "sessions"] });
+    },
+  });
+}
 
 export function useDeleteAccount() {
   const qc = useQueryClient();
