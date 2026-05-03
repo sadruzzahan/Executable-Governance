@@ -245,9 +245,15 @@ ${siblingContext}`;
       };
     };
 
+    // Only include AI conflicts that have valid rule references (to avoid broken /rules/undefined links).
+    // Deterministic server conflicts always carry full rule metadata, so they are always kept.
+    const validAiConflicts = aiAnalysis.conflicts
+      .map(normalizeConflict)
+      .filter((c) => c.conflictingRuleId !== undefined && c.conflictingRuleName !== undefined);
+
     const mergedConflicts = [
       ...serverConflicts,
-      ...aiAnalysis.conflicts.map(normalizeConflict),
+      ...validAiConflicts,
     ];
 
     const finalAnalysis = {
