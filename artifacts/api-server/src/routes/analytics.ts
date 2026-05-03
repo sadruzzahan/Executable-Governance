@@ -240,17 +240,29 @@ router.get("/analytics/rule-health", async (req, res): Promise<void> => {
          WHERE (ee->>'resolved')::boolean = false), 0
       ) AS INT) AS unresolved_edge_cases,
       CAST(COALESCE(jsonb_array_length(r.resolved_ambiguities), 0) AS INT) AS total_ambiguities,
-      CAST(COALESCE(jsonb_array_length(r.resolved_edge_cases), 0) AS INT) AS total_edge_cases
+      CAST(COALESCE(jsonb_array_length(r.resolved_edge_cases), 0) AS INT) AS total_edge_cases,
+      CAST(COALESCE(
+        (SELECT COUNT(*)
+         FROM decisions d2
+         CROSS JOIN LATERAL jsonb_array_elements(d2.rules_applied_json) AS elem2
+         WHERE (elem2->>'ruleId')::int = r.id
+           AND d2.outcome = 'needs_review'
+           AND d2.created_at >= now() - INTERVAL '30 days'
+           AND jsonb_typeof(d2.rules_applied_json) = 'array'), 0
+      ) AS INT) AS conflict_signals,
+      CAST((SELECT COUNT(*) FROM rule_versions rv WHERE rv.rule_id = r.id) AS INT) AS human_overrides
     FROM rules r
     LEFT JOIN policies p ON r.policy_id = p.id
     WHERE r.status = 'published'
-      AND (
-        (r.resolved_ambiguities IS NOT NULL AND jsonb_array_length(r.resolved_ambiguities) > 0) OR
-        (r.resolved_edge_cases IS NOT NULL AND jsonb_array_length(r.resolved_edge_cases) > 0)
-      )
     ORDER BY (
       COALESCE((SELECT COUNT(*) FROM jsonb_array_elements(r.resolved_ambiguities) ea WHERE (ea->>'resolved')::boolean = false), 0) +
-      COALESCE((SELECT COUNT(*) FROM jsonb_array_elements(r.resolved_edge_cases) ee WHERE (ee->>'resolved')::boolean = false), 0) * 2
+      COALESCE((SELECT COUNT(*) FROM jsonb_array_elements(r.resolved_edge_cases) ee WHERE (ee->>'resolved')::boolean = false), 0) * 2 +
+      COALESCE((SELECT COUNT(*) FROM decisions d3
+        CROSS JOIN LATERAL jsonb_array_elements(d3.rules_applied_json) AS elem3
+        WHERE (elem3->>'ruleId')::int = r.id
+          AND d3.outcome = 'needs_review'
+          AND d3.created_at >= now() - INTERVAL '30 days'
+          AND jsonb_typeof(d3.rules_applied_json) = 'array'), 0)
     ) DESC
     LIMIT 10
   `);
@@ -258,6 +270,8 @@ router.get("/analytics/rule-health", async (req, res): Promise<void> => {
   const rules = result.rows.map((r) => {
     const ua = r.unresolved_ambiguities as number;
     const ue = r.unresolved_edge_cases as number;
+    const cs = r.conflict_signals as number;
+    const ho = r.human_overrides as number;
     return {
       ruleId: r.rule_id as number,
       ruleName: r.rule_name as string,
@@ -267,7 +281,9 @@ router.get("/analytics/rule-health", async (req, res): Promise<void> => {
       unresolvedEdgeCases: ue,
       totalAmbiguities: r.total_ambiguities as number,
       totalEdgeCases: r.total_edge_cases as number,
-      healthScore: ua + ue * 2,
+      conflictSignals: cs,
+      humanOverrides: ho,
+      healthScore: ua + ue * 2 + cs,
     };
   });
 

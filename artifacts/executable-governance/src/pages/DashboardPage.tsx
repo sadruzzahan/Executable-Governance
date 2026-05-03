@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import {
   useGetAnalyticsSummary,
+  getGetAnalyticsSummaryQueryKey,
   useGetDecisionVolume,
+  getGetDecisionVolumeQueryKey,
   useGetTopRules,
+  getGetTopRulesQueryKey,
   useGetCoverageGaps,
+  getGetCoverageGapsQueryKey,
   useGetRuleHealth,
+  getGetRuleHealthQueryKey,
   useListDecisions,
+  getListDecisionsQueryKey,
 } from "@workspace/api-client-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -22,8 +28,7 @@ import type { DecisionList, DecisionSummary, DecisionVolumeDay, TopRuleItem, Cov
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REFETCH: any = { refetchInterval: 60_000 };
+const REFETCH_MS = 60_000;
 
 function timeAgo(d: string | Date) {
   const sec = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -377,6 +382,8 @@ function RuleHealthPanel({ rules }: { rules?: RuleHealthItem[] }) {
                   <th className="px-4 py-2.5 text-left text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Policy</th>
                   <th className="px-4 py-2.5 text-center text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Unresolved Ambig.</th>
                   <th className="px-4 py-2.5 text-center text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Unresolved Edge Cases</th>
+                  <th className="px-4 py-2.5 text-center text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Conflict Signals</th>
+                  <th className="px-4 py-2.5 text-center text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Human Overrides</th>
                   <th className="px-4 py-2.5 text-center text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Health Score</th>
                 </tr>
               </thead>
@@ -403,6 +410,16 @@ function RuleHealthPanel({ rules }: { rules?: RuleHealthItem[] }) {
                         </span>
                         <span className="text-muted-foreground text-[11px]"> / {rule.totalEdgeCases}</span>
                       </td>
+                      <td className="px-4 py-3 text-center tabular-nums">
+                        <span className={cn("font-semibold", rule.conflictSignals > 0 ? "text-red-400" : "text-muted-foreground")}>
+                          {rule.conflictSignals}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center tabular-nums">
+                        <span className={cn("font-semibold", rule.humanOverrides > 1 ? "text-amber-400" : "text-muted-foreground")}>
+                          {rule.humanOverrides}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-center">
                         <span className={cn("font-bold tabular-nums text-base", scoreColor)}>{rule.healthScore}</span>
                       </td>
@@ -421,12 +438,12 @@ function RuleHealthPanel({ rules }: { rules?: RuleHealthItem[] }) {
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { data: summary } = useGetAnalyticsSummary(undefined, { query: REFETCH });
-  const { data: volume }  = useGetDecisionVolume({ query: REFETCH });
-  const { data: topRules } = useGetTopRules({ query: REFETCH });
-  const { data: gaps }     = useGetCoverageGaps({ query: REFETCH });
-  const { data: health }   = useGetRuleHealth({ query: REFETCH });
-  const { data: recent }   = useListDecisions({ limit: 10 }, { query: REFETCH });
+  const { data: summary } = useGetAnalyticsSummary(undefined, { query: { queryKey: getGetAnalyticsSummaryQueryKey(), refetchInterval: REFETCH_MS } });
+  const { data: volume }  = useGetDecisionVolume({ query: { queryKey: getGetDecisionVolumeQueryKey(), refetchInterval: REFETCH_MS } });
+  const { data: topRules } = useGetTopRules({ query: { queryKey: getGetTopRulesQueryKey(), refetchInterval: REFETCH_MS } });
+  const { data: gaps }     = useGetCoverageGaps({ query: { queryKey: getGetCoverageGapsQueryKey(), refetchInterval: REFETCH_MS } });
+  const { data: health }   = useGetRuleHealth({ query: { queryKey: getGetRuleHealthQueryKey(), refetchInterval: REFETCH_MS } });
+  const { data: recent }   = useListDecisions({ limit: 10 }, { query: { queryKey: getListDecisionsQueryKey({ limit: 10 }), refetchInterval: REFETCH_MS } });
 
   const approvalSub = summary ? `${summary.approvalRate}% of ${summary.decisionsLast30d} decisions` : undefined;
   const exceptionSub = summary ? `needs review + escalated` : undefined;

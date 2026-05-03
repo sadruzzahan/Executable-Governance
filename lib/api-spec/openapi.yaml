@@ -1812,6 +1812,12 @@ components:
           type: integer
         totalEdgeCases:
           type: integer
+        conflictSignals:
+          type: integer
+          description: Decisions in the last 30d where this rule was evaluated and outcome was needs_review
+        humanOverrides:
+          type: integer
+          description: Number of times this rule has been manually edited (version count)
         healthScore:
           type: integer
       required:
@@ -1823,6 +1829,8 @@ components:
         - unresolvedEdgeCases
         - totalAmbiguities
         - totalEdgeCases
+        - conflictSignals
+        - humanOverrides
         - healthScore
 
     RuleHealth:

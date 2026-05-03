@@ -666,6 +666,10 @@ export interface RuleHealthItem {
   unresolvedEdgeCases: number;
   totalAmbiguities: number;
   totalEdgeCases: number;
+  /** Decisions in the last 30d where this rule was evaluated and outcome was needs_review */
+  conflictSignals: number;
+  /** Number of times this rule has been manually edited (human overrides via versioning) */
+  humanOverrides: number;
   healthScore: number;
 }
 
